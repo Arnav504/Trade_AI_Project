@@ -6,6 +6,7 @@ without additional manual intervention (input/output completeness).
 import argparse
 import re
 import sys
+from html import escape
 from pathlib import Path
 
 # Load .env first so OPENAI_API_KEY is set before the agent runs
@@ -18,9 +19,10 @@ if _env_path.exists():
     except Exception:
         pass
 
-from config import PROJECT_ROOT, DB_PATH
+from config import PROJECT_ROOT, get_db_path
 from database import ensure_db, clear_trade_flows
-from agent import run_agent
+from agent import last_brief, run_agent
+from report_contract import DISCLAIMER
 
 
 def main():
@@ -89,6 +91,9 @@ def main():
         if getattr(args, "data_url", None):
             n = load_csv_url(args.data_url)
             print(f"Loaded {n} rows from URL: {args.data_url}", file=sys.stderr)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
     except ImportError:
         if args.data:
             data_path = Path(args.data)
@@ -136,30 +141,34 @@ def main():
 
 def _report_to_html(report: str) -> str:
     """Wrap report text in a minimal HTML page for sharing."""
-    escaped = report.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    lines = escaped.split("\n")
-    body = "<br>\n".join(lines)
-    return f"""<!DOCTYPE html>
+    escaped = escape(report)
+    body = "<br>\n".join(escaped.split("\n"))
+    return """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <title>ASAN Macro – Trade Sentiment Report</title>
   <style>
-    body {{ font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }}
-    h1 {{ font-size: 1.25rem; }}
-    .report {{ white-space: pre-wrap; }}
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1 { font-size: 1.25rem; }
   </style>
 </head>
 <body>
   <h1>ASAN Macro – Trade Sentiment Report</h1>
-  <div class="report">{body}</div>
+  <div class="report">""" + body + """</div>
 </body>
 </html>"""
 
 
 def _linkedin_one_liner(report: str, max_chars: int = 280) -> str:
     """Produce a short LinkedIn-ready summary (first meaningful sentences)."""
-    report = report.strip()
+    kept = []
+    for line in (report or "").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped == DISCLAIMER:
+            continue
+        kept.append(stripped)
+    report = " ".join(kept).strip()
     if not report:
         return "Trade sentiment analysis by ASAN Macro."
     para = report.split("\n\n")[0].strip()
@@ -176,9 +185,15 @@ def _linkedin_one_liner(report: str, max_chars: int = 280) -> str:
 
 
 def _report_to_json(report: str) -> dict:
-    """Parse report text into structured JSON for dashboards and data products."""
-    import re
+    """Prefer the structured brief from the agent. Fall back to heading splits."""
     from datetime import datetime
+
+    brief = last_brief()
+    if brief is not None:
+        payload = brief.model_dump()
+        payload["full_report"] = report
+        return payload
+
     report = report.strip()
     if not report:
         return {"summary": "", "key_regions_sectors": "", "so_what": "", "whats_next": "", "bullets": [], "generated_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"), "full_report": ""}
@@ -247,7 +262,7 @@ def _load_csv_into_db(csv_path: Path):
     """Load a CSV with trade data into the database. Columns: year, reporter_region, partner_region, sector, flow_type, value_usd."""
     import csv
     import sqlite3
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(get_db_path()))
     cur = conn.cursor()
     try:
         with open(csv_path, newline="", encoding="utf-8") as f:

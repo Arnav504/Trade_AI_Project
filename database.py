@@ -4,7 +4,7 @@ Stores regional/sectoral trade flows for RAG and tool-augmented LLM analysis.
 """
 import sqlite3
 from pathlib import Path
-from config import DATA_DIR, DB_PATH
+from config import DB_PATH, get_db_path
 
 SCHEMA_SQL = """
 -- Trade flows (region/sector/time)
@@ -67,7 +67,7 @@ SAMPLE_RAG_CHUNKS = [
 
 
 def init_db(db_path: Path = None):
-    db_path = db_path or DB_PATH
+    db_path = Path(db_path) if db_path else get_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db_path))
     conn.executescript(SCHEMA_SQL)
@@ -102,7 +102,7 @@ def ensure_db():
 
 def clear_trade_flows():
     """Remove all rows from trade_flows (e.g. before loading dynamic data only)."""
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(get_db_path()))
     conn.execute("DELETE FROM trade_flows")
     conn.commit()
     conn.close()

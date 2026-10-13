@@ -1,19 +1,43 @@
 # ASAN Macro
 
-**AI-powered trade analysis agent** · Tool-augmented LLM · Evaluation & safety scaffolding
+**Public trade briefs** from a tool-grounded analyst agent.
 
-**Built solo by Arnav Sahai** · AI Analyst & AI Security Analyst
+Open the site and three sample briefs are already there: BRICS minerals and energy, US–China electronics, and Vietnam/Mexico supply into the United States. The bars are SQL aggregates from the same seeded panel as the text. A live box can ask the model a short focus; repeated questions come from cache, and new generations are limited to five an hour. If the model is still running or the API is down, the closest sample stays on screen.
 
-I designed and implemented ASAN Macro end-to-end: data layer, analyst tools, multi-backend LLM agent, evaluation harness, adversarial safety checks, Comtrade ingest, and scheduled reporting. The system turns structured trade data into short, decision-ready **sentiment reports** with thematic synthesis, key regions/sectors, **so what**, and **what’s next**—grounding the LLM in SQLite, custom tools, and lightweight RAG rather than a generic chatbot paste.
+The panel is an **illustrative synthetic set of 18 flows (2022–2024)**. It is not official UN Comtrade statistics.
 
-> **Problem it solves:** Manual Comtrade → spreadsheet → generic LLM workflows are slow, inconsistent, and poorly grounded.  
-> **Approach I built:** Ingest → query via tools → synthesize with a multi-backend agent → evaluate completeness and misuse resistance.
+**Live site:** [https://asan-macro.vercel.app](https://asan-macro.vercel.app)
+
+The samples are on that URL with no API key. Live generation still needs the Python API from `render.yaml`: set `GEMINI_API_KEY` or `OPENAI_API_KEY` there, then set `NEXT_PUBLIC_AGENT_API_URL` on the Vercel project and redeploy `web/`. Until that API exists, the live box says generation is not connected and the sample briefs stay up.
+
+## Run it locally
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env   # one LLM backend, only needed for live generation
+python scripts/export_gallery.py
+cd web && npm install && npm run dev
+```
+
+In another terminal, the live API:
+
+```bash
+uvicorn api.app:app --port 8000
+```
+
+Point the site at it with `NEXT_PUBLIC_AGENT_API_URL=http://127.0.0.1:8000` before `npm run dev`. Without that variable the samples still render and the live box says generation is not connected.
+
+CLI, unchanged:
+
+```bash
+python main.py -q "BRICS" -o report.txt
+```
 
 ---
 
 ## Functionality
 
-ASAN Macro is a **command-line AI agent** that analyzes regional and sectoral trade data and produces a structured **trade sentiment report**. It does not require a web UI: one command loads data (if needed), queries a local database through tools, calls an LLM, and writes the report to disk.
+ASAN Macro is a trade analyst agent. The public site in `web/` shows precomputed briefs and charts. The same core still runs as a CLI: one command loads data (if needed), queries a local database through tools, calls an LLM, and writes the report to disk.
 
 ### What it does
 
@@ -22,11 +46,11 @@ ASAN Macro is a **command-line AI agent** that analyzes regional and sectoral tr
 | **Trade sentiment reporting** | Generates a short narrative with thematic synthesis, key regions/sectors, implications (**so what**), and outlook (**what’s next**), wrapped in `REPORT_START` / `REPORT_END`. |
 | **Focus queries** | Optional `-q` (e.g. `BRICS`, `US-China electronics`) steers analysis; omit it for a full-database read. |
 | **Tool-grounded analysis** | The LLM is backed by nine tools over SQLite—not free-form guessing alone—so claims can be tied to stored flows and bulletins. |
-| **Multi-backend LLMs** | Uses the first available backend: **Ollama (local)** → **Gemini** → **OpenAI**. OpenAI runs a multi-turn function-calling loop; Ollama/Gemini pre-gather tool context, then synthesize in one call. |
+| **Multi-backend LLMs** | First available backend: **Ollama** → **Gemini** → **OpenAI**. OpenAI runs a multi-turn tool loop. Ollama and Gemini get a focus-specific tool pack, then write once. Gemini receives the system prompt. |
 | **Dynamic data ingest** | Load local CSV (`-d`), CSV from URL (`--data-url`), or UN Comtrade via `scripts/fetch_comtrade.py`. `--replace-data` clears seed rows before loading. |
 | **Multiple output formats** | `text` (default), `html`, `linkedin` (report + short one-liner file), or `json` (structured fields for dashboards/APIs). |
 | **Evaluation** | `evaluation/run_evaluation.py` runs multiple focus queries and scores section presence, length, and runtime. |
-| **Adversarial / safety probes** | `evaluation/adversarial_test.py` exercises prompt-leak, jailbreak-style, off-topic, and gibberish inputs. |
+| **Adversarial / safety probes** | `guard_query` refuses instruction-override text before any model call (unit tested). Inputs that pass the guard are not yet recorded against a live model. |
 | **Scheduled runs** | Cron helper (`scripts/run_scheduled.sh`) and GitHub Actions can ingest + generate recurring report artifacts. |
 | **Colab demo path** | `colab_setup.ipynb` supports cloud runs with Gemini or OpenAI (no local Ollama). |
 
@@ -186,16 +210,23 @@ ASAN_AI_Project/
 ├── main.py                 # CLI entry: ingest → agent → format output
 ├── agent.py                # LLM orchestration (Ollama / Gemini / OpenAI)
 ├── tools.py                # Nine analyst tools over SQLite + RAG
+├── report_contract.py      # Brief schema, query guard, disclaimer
+├── focus.py                # Focus-specific tool pack
+├── gallery_build.py        # SQL charts + three sample briefs
+├── api/app.py              # Cached, rate-limited live API
+├── web/                    # Next.js public site
 ├── database.py             # Schema + seed data
-├── data_ingestion.py       # CSV / URL / JSON ingest
+├── data_ingestion.py       # CSV / allowlisted https ingest
 ├── config.py               # Env, paths, model helpers
 ├── evaluation/
 │   ├── run_evaluation.py   # Completeness / runtime harness
 │   └── adversarial_test.py # Misuse / injection-style probes
 ├── scripts/
 │   ├── fetch_comtrade.py   # UN Comtrade → DB
+│   ├── export_gallery.py   # Rewrite gallery JSON from the seed
 │   └── run_scheduled.sh    # Ingest + report for cron
 ├── .github/workflows/
+│   ├── ci.yml
 │   └── scheduled_report.yml
 └── data/                   # trade.db created on first run
 ```
@@ -243,50 +274,20 @@ I completed this project alone: architecture, agent orchestration, tools/DB/RAG,
 
 ---
 
-## Proposed improvements
+## What shipped for the public demo
 
-Roadmap I proposed to strengthen hiring and AI-expert appeal. Status: **proposed** (not yet implemented unless noted).
+- Next.js site (`web/`) with three sample briefs, SQL charts, and a tool trace.
+- FastAPI service (`api/app.py`): cache, background jobs, five new generations per IP per hour. No public file or URL upload.
+- Pydantic brief contract, focus-specific tool pack, Gemini system prompt, disclaimer on every brief.
+- Query guard and an https host allowlist for operator `--data-url`.
+- Pytest plus a pull-request workflow. No live LLM in CI.
+- `avg_word_count` in the evaluation harness is a mean (the committed 12-run file now says 373, not the old sum of 4479).
 
-### Priority 0 — highest impact
+## Still later
 
-| Change I proposed | Why I proposed it |
-|-------------------|-------------------|
-| Demo GIF / 60s screen recording in the README | Recruiters rarely clone; visual proof of the agent loop |
-| Fix evaluation metrics (e.g. average word count) and commit live adversarial results with a configured LLM | Safety claims need evidence from real model runs |
-| Unit tests (`pytest`) for `tools.py` (SQL filters, YoY, HTML escape) | Agent tools should be tested independently of the LLM |
-| CI on PR: lint + unit tests + dry-run evaluation | Engineering discipline beyond notebook demos |
+Embedding retrieval, citation checks against a gold set, a live adversarial model run in CI, and a Comtrade-scale corpus. Keyword RAG and the OpenAI-only tool loop are unchanged on purpose for this pass.
 
-### Priority 1 — AI / agent credibility
-
-| Change I proposed | Why I proposed it |
-|-------------------|-------------------|
-| Replace keyword RAG with embeddings + cite sources in reports | Move beyond “toy RAG”; prove groundedness to AI reviewers |
-| Add groundedness / citation checks to the evaluation harness | Separate narrative fluency from factual fidelity |
-| Structured output via JSON schema / Pydantic (keep delimiters as fallback) | Typed contracts match modern agent stacks |
-| Prompt-injection guard on `-q` | Threat-model user input as an AI security analyst |
-| URL allowlist for `--data-url` | Mitigate SSRF if the CLI is ever exposed as a service |
-| Tool-call trace log (name, args, latency per run) | Agent observability for debugging and demos |
-
-### Priority 2 — polish & differentiation
-
-| Change I proposed | Why I proposed it |
-|-------------------|-------------------|
-| Optional thin FastAPI endpoint + auth token over the same agent core | Show a productization path without a rewrite |
-| Dockerfile (+ optional Compose) for reproducible local runs | Lower friction for technical reviewers |
-| Auto-append “machine-generated; verify against sources” disclaimer | Make responsible-AI practice concrete in every report |
-| Short architecture note on dual Ollama vs OpenAI execution modes | Document intentional trade-offs |
-| Sample report gallery (BRICS, US–China) with expected tool traces | Make quality tangible in-repo |
-| Clarify goods-trade focus vs maritime branding (or add AIS later) | Avoid domain credibility gaps with experts |
-
-### Current limitations (baseline I acknowledged)
-
-| Current state | Direction I proposed |
-|---------------|----------------------|
-| Keyword RAG (`LIKE` over chunks) | Embedding retrieval + ranking |
-| True tool loop on OpenAI; pre-tooling on Ollama/Gemini | Unified tool-calling where models support it |
-| CLI + report artifacts | Optional thin API with auth and rate limits |
-| Adversarial suite present | Always run against a live configured model in CI |
-| Synthetic seed + optional Comtrade | Larger curated corpora + groundedness scoring |
+Course and debug notes live in [docs/archive](docs/archive).
 
 ---
 

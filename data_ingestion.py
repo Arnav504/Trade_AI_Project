@@ -4,13 +4,14 @@ Supports: local CSV, CSV from URL, and optional JSON API (e.g. UN Comtrade-style
 Makes the project's data gathering dynamic and pipeline-ready for LinkedIn/demo.
 """
 import csv
+import ipaddress
 import os
 import sqlite3
 from pathlib import Path
+from urllib.parse import urlparse
 from urllib.request import urlopen
-from urllib.error import URLError
 
-from config import DB_PATH, PROJECT_ROOT
+from config import PROJECT_ROOT, get_data_url_allowlist, get_db_path
 
 # Optional: requests for nicer URL handling (pip install requests)
 try:
@@ -21,7 +22,7 @@ except ImportError:
 
 
 def _get_conn():
-    return sqlite3.connect(str(DB_PATH))
+    return sqlite3.connect(str(get_db_path()))
 
 
 def _insert_flow(cur, year: int, reporter: str, partner: str, sector: str, flow_type: str, value_usd: float):
@@ -68,14 +69,41 @@ def load_csv_path(csv_path: Path) -> int:
     return count
 
 
+def assert_public_https_url(url: str) -> str:
+    """Allow only https URLs whose host is on DATA_URL_ALLOWLIST. Rejects IPs, localhost, and credentials."""
+    parsed = urlparse((url or "").strip())
+    if parsed.scheme != "https":
+        raise ValueError("Only https URLs are allowed for data ingest.")
+    if parsed.username or parsed.password:
+        raise ValueError("URLs with embedded credentials are not allowed.")
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if not host:
+        raise ValueError("URL host is missing.")
+    if host in {"localhost", "metadata.google.internal"} or host.endswith(".local"):
+        raise ValueError("Local hosts are not allowed.")
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        raise ValueError("IP addresses are not allowed.")
+    allowed = get_data_url_allowlist()
+    if host not in allowed:
+        raise ValueError(f"Host {host} is not on DATA_URL_ALLOWLIST.")
+    return url.strip()
+
+
 def load_csv_url(url: str) -> int:
     """
-    Load CSV from a URL into the database (dynamic data source).
+    Load CSV from an allowlisted https URL into the database.
     Same column expectations as load_csv_path.
     Returns number of rows inserted.
     """
+    url = assert_public_https_url(url)
     if HAS_REQUESTS:
-        resp = requests.get(url, timeout=30)
+        resp = requests.get(url, timeout=30, allow_redirects=False)
+        if resp.is_redirect:
+            raise ValueError("Redirects are not allowed for data URLs.")
         resp.raise_for_status()
         text = resp.text
     else:
@@ -118,12 +146,15 @@ def load_json_api(url: str = None, api_key_env: str = "COMTRADE_API_KEY") -> int
     target_url = url or os.environ.get("COMTRADE_JSON_URL", "").strip()
     if not target_url:
         return 0
+    target_url = assert_public_https_url(target_url)
     api_key = os.environ.get(api_key_env, "").strip()
     headers = {}
     if api_key:
         headers["Ocp-Apim-Subscription-Key"] = api_key  # Comtrade-style
     if HAS_REQUESTS:
-        resp = requests.get(target_url, headers=headers, timeout=60)
+        resp = requests.get(target_url, headers=headers, timeout=60, allow_redirects=False)
+        if resp.is_redirect:
+            raise ValueError("Redirects are not allowed for data URLs.")
         resp.raise_for_status()
         data = resp.json()
     else:

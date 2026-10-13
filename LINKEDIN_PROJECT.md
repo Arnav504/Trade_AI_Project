@@ -16,7 +16,7 @@ I built **ASAN Macro**, an AI-powered trade analysis agent that turns raw trade 
 - **Dynamic data**: Ingest from local CSV, CSV URLs, and optional JSON APIs (e.g. UN Comtrade–style) so analysis isn’t limited to static files.
 - **Richer analysis**: Custom tools for year-over-year growth, top flows by value, and trade trends so the LLM reasons over real metrics, not just raw rows.
 - **LLM flexibility**: Supports OpenAI, Google Gemini, and local Ollama; model choice via env.
-- **Responsible AI**: Evaluation harness + adversarial probes; roadmap I proposed for embeddings, citations, and prompt-injection guards.
+- **Responsible AI:** Query guard blocks instruction overrides before the model runs. Unit tests cover that guard. A live model run of inputs that pass the guard is not recorded yet.
 - **Stack**: Python, SQLite, OpenAI / Gemini / Ollama, RAG-style retrieval, function-calling agents.
 
 ---

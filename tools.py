@@ -4,11 +4,11 @@ These tools query the trade database and RAG store so the LLM can ground its ana
 """
 import sqlite3
 from pathlib import Path
-from config import DB_PATH
+from config import get_db_path
 
 
 def _get_conn():
-    return sqlite3.connect(str(DB_PATH))
+    return sqlite3.connect(str(get_db_path()))
 
 
 def list_regions() -> str:

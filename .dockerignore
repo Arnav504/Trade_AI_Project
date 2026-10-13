@@ -1,0 +1,11 @@
+.git
+.venv
+venv
+**/__pycache__
+**/*.pyc
+.env
+data/*.db
+data/*.sqlite
+web/node_modules
+web/.next
+.vercel

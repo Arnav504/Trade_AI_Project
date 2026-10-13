@@ -119,7 +119,7 @@ def main():
         "total_runtime_sec": round(sum(r["runtime_sec"] for r in results), 2),
         "avg_runtime_sec": round(sum(r["runtime_sec"] for r in results) / n, 2) if n else 0,
         "avg_char_count": round(sum(r["char_count"] for r in results) / n, 0) if n else 0,
-        "avg_word_count": round(sum(r["word_count"] for r in results), 0) if n else 0,
+        "avg_word_count": round(sum(r["word_count"] for r in results) / n, 0) if n else 0,
         "pct_has_summary": round(100 * sum(r["has_summary"] for r in results) / n, 1) if n else 0,
         "pct_has_key_regions_sectors": round(100 * sum(r["has_key_regions_sectors"] for r in results) / n, 1) if n else 0,
         "pct_has_so_what": round(100 * sum(r["has_so_what"] for r in results) / n, 1) if n else 0,

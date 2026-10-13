@@ -8,6 +8,26 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent
 DATA_DIR = PROJECT_ROOT / "data"
 DB_PATH = DATA_DIR / "trade.db"
+GALLERY_PATH = PROJECT_ROOT / "gallery" / "index.json"
+
+# HTTPS hosts operators may pass to --data-url. Override with DATA_URL_ALLOWLIST.
+DEFAULT_DATA_URL_HOSTS = ("raw.githubusercontent.com", "comtradeplus.un.org")
+
+
+def get_db_path() -> Path:
+    """SQLite path. ASAN_DB_PATH overrides the default so tests stay off the dev database."""
+    override = os.environ.get("ASAN_DB_PATH", "").strip()
+    if override:
+        return Path(override)
+    return DB_PATH
+
+
+def get_data_url_allowlist() -> set:
+    """Hosts allowed for operator CSV/JSON ingest. IP addresses are never allowed."""
+    raw = os.environ.get("DATA_URL_ALLOWLIST", "").strip()
+    if not raw:
+        return {host.lower() for host in DEFAULT_DATA_URL_HOSTS}
+    return {host.strip().lower() for host in raw.split(",") if host.strip()}
 
 def get_openai_api_key():
     # Load .env first so we always use the file (override any stale env)

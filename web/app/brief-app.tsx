@@ -132,8 +132,23 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
         await new Promise((resolve) => setTimeout(resolve, 3000));
         if (mine !== ticket.current) return;
         const poll = await fetch(`${base}/analyze/${jobId}`);
+        if (mine !== ticket.current) return;
         if (!poll.ok) continue;
-        const job = await poll.json();
+        let job: { status?: string; brief?: Brief; error?: string };
+        try {
+          job = await poll.json();
+        } catch {
+          if (mine !== ticket.current) return;
+          setStatus("The analysis service returned an unreadable status. Showing the closest sample brief.");
+          setPending(false);
+          return;
+        }
+        if (!job || typeof job !== "object") {
+          if (mine !== ticket.current) return;
+          setStatus("The analysis service returned an unreadable status. Showing the closest sample brief.");
+          setPending(false);
+          return;
+        }
         if (job.status === "complete" && job.brief) {
           setLive(job.brief);
           setStatus("Live brief ready. Charts below stay on the seeded panel.");

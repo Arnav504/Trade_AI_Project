@@ -15,7 +15,7 @@ const sans = Source_Sans_3({
 export const metadata: Metadata = {
   title: "ASAN Macro — trade sentiment briefs",
   description:
-    "Instant sample briefs from a seeded trade panel, plus a rate-limited live query grounded in the same database tools.",
+    "Trade briefs and charts from a UN Comtrade corridor, plus a rate-limited live query on the same rows.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

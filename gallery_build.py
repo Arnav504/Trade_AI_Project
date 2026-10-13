@@ -106,14 +106,55 @@ def _chart_yoy(spans: list[dict], limit: int = 8) -> list[dict]:
     ]
 
 
-def _compose(preset: dict, spans: list[dict], trace: list[dict]) -> dict:
+def live_note(flow_count: int, world_bank_count: int = 0, imf_count: int = 0) -> str:
+    """Source line after a live refresh. Only names a source when that pull returned rows."""
+    parts = [
+        "UN Comtrade annual merchandise. "
+        "HS 26 minerals, HS 27 energy, HS 85 electronics, HS 61 and 62 textiles, HS 84 and 87 manufacturing. "
+        f"{flow_count} flows"
+    ]
+    if world_bank_count:
+        parts.append(f"World Bank merchandise exports and imports ({world_bank_count} observations)")
+    if imf_count:
+        parts.append(f"IMF WEO current account ({imf_count} observations)")
+    return ". ".join(parts) + f". Retrieved {utc_now()}. Not a forecast."
+
+
+def comtrade_note(row_count: int) -> str:
+    """Source line for a gallery built from the HS corridor pull."""
+    return (
+        "UN Comtrade annual merchandise. "
+        "HS 26 minerals, HS 27 energy, HS 85 electronics, HS 61 and 62 textiles, HS 84 and 87 manufacturing. "
+        f"{row_count} flows. Retrieved {utc_now()}. Not a forecast."
+    )
+
+
+def charts_for_focus(query: str | None) -> dict:
+    """Bars for the same region and sector filter the tools use."""
+    from focus import plan_focus
+
+    plan = plan_focus(query)
+    spans = flow_spans(plan["regions"] or None, plan["sectors"] or None)
+    return {"top_flows": _chart_levels(spans), "yoy": _chart_yoy(spans)}
+
+
+def _compose(preset: dict, spans: list[dict], trace: list[dict], official: bool = False) -> dict:
     ranked = sorted(spans, key=lambda span: abs(span["span_pct"] or 0), reverse=True)
     lead = ranked[:3] or spans[:3]
     summary = " ".join(_clause(span) for span in lead)
     if not summary:
-        summary = "This focus has no matching rows in the seeded panel."
+        summary = (
+            "This focus has no matching rows in the current panel."
+            if official
+            else "This focus has no matching rows in the seeded panel."
+        )
     key_lines = [_clause(span) for span in spans[:6]]
     key_regions = " ".join(key_lines) if key_lines else "No matching flows."
+    macro = ""
+    if official:
+        from macro_data import render_macro
+
+        macro = render_macro(preset["regions"])
     ups = [span for span in spans if (span["span_pct"] or 0) > 0]
     downs = [span for span in spans if (span["span_pct"] or 0) < 0]
     up_names = ", ".join(_subject(span) for span in ups[:3])
@@ -126,10 +167,16 @@ def _compose(preset: dict, spans: list[dict], trace: list[dict]) -> dict:
         movement = f"the filtered flows are lower over the period: {down_names}."
     else:
         movement = "the filtered rows do not show a first-to-last change."
-    so_what = (
-        f"Inside this illustrative panel, {movement} "
-        "That is a partner shift in the seeded rows, not an official trade balance or a forecast."
-    )
+    if official:
+        so_what = (
+            f"In this UN Comtrade slice, {movement} "
+            "That is a change in the selected HS chapters, not a full trade balance or a forecast."
+        )
+    else:
+        so_what = (
+            f"Inside this illustrative panel, {movement} "
+            "That is a partner shift in the seeded rows, not an official trade balance or a forecast."
+        )
     watch = ranked[0]["label"] if ranked else "the same reporter–partner pairs"
     whats_next = (
         f"The next point that would change this brief is another year of {watch}. "
@@ -154,6 +201,7 @@ def _compose(preset: dict, spans: list[dict], trace: list[dict]) -> dict:
     brief.full_report = rendered
     payload = brief.model_dump()
     payload["kicker"] = preset["kicker"]
+    payload["macro"] = macro
     payload["charts"] = {"top_flows": _chart_levels(spans), "yoy": _chart_yoy(spans)}
     return payload
 
@@ -167,19 +215,21 @@ def _trace_for(query: str) -> list[dict]:
         end_trace(token)
 
 
-def build_gallery() -> dict:
+def build_gallery(data_note: str | None = None) -> dict:
     """Compose three briefs and the chart series from the current database."""
     ensure_db()
+    official = data_note is not None
     all_spans = flow_spans()
     briefs = []
     for preset in PRESETS:
         spans = flow_spans(preset["regions"], preset["sectors"])
-        briefs.append(_compose(preset, spans, _trace_for(preset["query"])))
+        briefs.append(_compose(preset, spans, _trace_for(preset["query"]), official=official))
+    note = data_note or (
+        f"Illustrative synthetic trade panel ({len(load_flows())} flows, 2022–2024). "
+        "Not official UN Comtrade statistics."
+    )
     return {
-        "data_note": (
-            f"Illustrative synthetic trade panel ({len(load_flows())} flows, 2022–2024). "
-            "Not official UN Comtrade statistics."
-        ),
+        "data_note": note,
         "disclaimer": DISCLAIMER,
         "generated_at": utc_now(),
         "how_it_works": {
@@ -192,6 +242,7 @@ def build_gallery() -> dict:
                 "get_yoy_growth",
                 "get_top_flows",
                 "get_trade_trends",
+                "get_macro_context",
                 "rag_retrieve",
             ],
             "backends": (

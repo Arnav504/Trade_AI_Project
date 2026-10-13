@@ -283,6 +283,14 @@ def get_trade_trends(region: str = None, limit: int = 10) -> str:
     return "\n".join(lines)
 
 
+def get_macro_context(region: str = "") -> str:
+    """World Bank merchandise totals and IMF current account for one country, or the loaded set."""
+    from macro_data import render_macro
+
+    text = render_macro([region] if region else None)
+    return text or "No World Bank or IMF series are loaded."
+
+
 # Registry for the agent: name -> (function, description)
 TOOLS = [
     ("list_regions", list_regions, "List all regions in the trade database."),
@@ -294,6 +302,7 @@ TOOLS = [
     ("get_yoy_growth", get_yoy_growth, "Get year-over-year growth in trade value. Optional: region, sector, year_from, year_to."),
     ("get_top_flows", get_top_flows, "Get top N trade flows by value. Optional: n (default 10), year_from, year_to, flow_type."),
     ("get_trade_trends", get_trade_trends, "Summarize trade trends (sectors/partners that grew or shrank). Optional: region, limit."),
+    ("get_macro_context", get_macro_context, "World Bank merchandise exports and imports, plus the IMF current account. Optional: region."),
 ]
 
 TOOL_BY_NAME = {name: fn for name, fn, _ in TOOLS}

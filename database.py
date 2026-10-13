@@ -34,6 +34,16 @@ CREATE INDEX IF NOT EXISTS idx_trade_reporter ON trade_flows(reporter_region);
 CREATE INDEX IF NOT EXISTS idx_trade_partner ON trade_flows(partner_region);
 CREATE INDEX IF NOT EXISTS idx_trade_sector ON trade_flows(sector);
 CREATE INDEX IF NOT EXISTS idx_trade_year ON trade_flows(year);
+
+CREATE TABLE IF NOT EXISTS macro_series (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL,
+    indicator TEXT NOT NULL,
+    country TEXT NOT NULL,
+    year INTEGER NOT NULL,
+    value REAL,
+    unit TEXT
+);
 """
 
 # Sample data: BRICS vs US/China decoupling narrative (synthetic but realistic)

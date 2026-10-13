@@ -13,6 +13,9 @@ from agent import last_brief, run_agent
 from api.cache import cache_get, cache_put
 from api.rate_limit import RateLimiter
 from config import GALLERY_PATH
+from focus import plan_focus
+from gallery_build import charts_for_focus
+from macro_data import render_macro
 from report_contract import DISCLAIMER, QueryRejected, guard_query
 
 app = FastAPI(title="ASAN Macro", version="1.0.0")
@@ -55,6 +58,8 @@ def produce_brief(query: str) -> dict:
     else:
         payload = brief.model_dump()
     payload["full_report"] = text
+    payload["charts"] = charts_for_focus(query)
+    payload["macro"] = render_macro(plan_focus(query)["regions"])
     return payload
 
 

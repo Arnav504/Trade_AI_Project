@@ -234,6 +234,7 @@ def _run_agent_openai(client, user_query: str | None, max_rounds: int) -> str:
         {"type": "function", "function": {"name": "get_yoy_growth", "description": "Get year-over-year growth in trade value. Optional filters: region, sector, year_from, year_to.", "parameters": {"type": "object", "properties": {"region": {"type": "string"}, "sector": {"type": "string"}, "year_from": {"type": "integer"}, "year_to": {"type": "integer"}}}}},
         {"type": "function", "function": {"name": "get_top_flows", "description": "Get top N trade flows by value. Optional: n, year_from, year_to, flow_type.", "parameters": {"type": "object", "properties": {"n": {"type": "integer"}, "year_from": {"type": "integer"}, "year_to": {"type": "integer"}, "flow_type": {"type": "string"}}}}},
         {"type": "function", "function": {"name": "get_trade_trends", "description": "Summarize trade trends (sectors/partners that grew or shrank). Optional: region, limit.", "parameters": {"type": "object", "properties": {"region": {"type": "string"}, "limit": {"type": "integer"}}}}},
+        {"type": "function", "function": {"name": "get_macro_context", "description": "World Bank merchandise totals and the IMF current account. Optional: region.", "parameters": {"type": "object", "properties": {"region": {"type": "string"}}}}},
     ]
     prompt = (
         "Analyze the trade database and RAG context using the tools, then produce the sentiment report."
@@ -319,6 +320,8 @@ def _run_tool(name: str, args: list) -> str:
         return f"Unknown tool: {name}"
 
     def _invoke():
+        if name == "get_macro_context":
+            return fn(args[0] if args else "")
         if name == "list_regions":
             return T.list_regions()
         if name == "list_sectors":
@@ -414,6 +417,8 @@ def _run_tool_native(name: str, kwargs: dict) -> str:
         return f"Unknown tool: {name}"
 
     def _invoke():
+        if name == "get_macro_context":
+            return fn(kwargs.get("region") or "")
         if name == "list_regions":
             return fn()
         if name == "list_sectors":

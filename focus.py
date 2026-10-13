@@ -87,11 +87,13 @@ def gather_context(user_query: str | None) -> str:
         add("get_yoy_growth", T.get_yoy_growth, year_from=2022, year_to=2024)
         add("get_top_flows", T.get_top_flows, n=10, year_from=2022)
         add("get_trade_trends", T.get_trade_trends, limit=10)
+        add("get_macro_context", T.get_macro_context)
         return "\n\n".join(parts)
 
     for region in regions:
         add("get_region_summary", T.get_region_summary, region=region)
         add("get_trade_trends", T.get_trade_trends, region=region, limit=8)
+        add("get_macro_context", T.get_macro_context, region=region)
     for sector in sectors:
         add("get_sector_summary", T.get_sector_summary, sector=sector)
         add("get_yoy_growth", T.get_yoy_growth, sector=sector, year_from=2022, year_to=2024)

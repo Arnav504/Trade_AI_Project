@@ -1,7 +1,7 @@
 {
-  "data_note": "Illustrative synthetic trade panel (18 flows, 2022–2024). Not official UN Comtrade statistics.",
+  "data_note": "UN Comtrade annual merchandise. HS 26 minerals, HS 27 energy, HS 85 electronics, HS 61 and 62 textiles, HS 84 and 87 manufacturing. 14 flows. World Bank merchandise exports and imports (48 observations). IMF WEO current account (48 observations). Retrieved 2026-10-13T23:30:29Z. Not a forecast.",
   "disclaimer": "Machine-generated brief. Figures come from the local trade panel and tool output; verify them against primary sources before use.",
-  "generated_at": "2026-10-13T22:25:57Z",
+  "generated_at": "2026-10-13T23:30:29Z",
   "how_it_works": {
     "tools": [
       "list_regions",
@@ -12,6 +12,7 @@
       "get_yoy_growth",
       "get_top_flows",
       "get_trade_trends",
+      "get_macro_context",
       "rag_retrieve"
     ],
     "backends": "OpenAI runs a multi-turn tool loop. Ollama and Gemini receive a focus-specific tool pack, then write the brief in one call."
@@ -20,102 +21,89 @@
     "top_flows": [
       {
         "label": "Mexico → USA · Manufacturing · export",
-        "value": 280000000000.0,
-        "display": "$280.0B (2024)",
+        "value": 230751305192.0,
+        "display": "$230.8B (2024)",
         "year": 2024
       },
       {
         "label": "China → USA · Electronics · export",
-        "value": 85000000000.0,
-        "display": "$85.0B (2024)",
-        "year": 2024
-      },
-      {
-        "label": "Vietnam → USA · Textiles · export",
-        "value": 18000000000.0,
-        "display": "$18.0B (2024)",
-        "year": 2024
-      },
-      {
-        "label": "India → Russia · Energy · import",
-        "value": 9200000000.0,
-        "display": "$9.2B (2024)",
+        "value": 125984078329.0,
+        "display": "$126.0B (2024)",
         "year": 2024
       },
       {
         "label": "Brazil → China · Minerals · export",
-        "value": 3800000000.0,
-        "display": "$3.8B (2023)",
+        "value": 21329438214.0,
+        "display": "$21.3B (2024)",
+        "year": 2024
+      },
+      {
+        "label": "Vietnam → USA · Textiles · export",
+        "value": 14273250616.369999,
+        "display": "$14.3B (2023)",
         "year": 2023
       },
       {
         "label": "South Africa → China · Minerals · export",
-        "value": 2700000000.0,
-        "display": "$2.7B (2023)",
-        "year": 2023
+        "value": 8222206414.364,
+        "display": "$8.2B (2024)",
+        "year": 2024
       }
     ],
     "yoy": [
       {
+        "label": "Vietnam → USA · Textiles · export · 2023",
+        "value": -17.0,
+        "display": "-17.0%",
+        "year": 2023
+      },
+      {
         "label": "China → USA · Electronics · export · 2024",
-        "value": -13.3,
-        "display": "-13.3%",
+        "value": 1.2,
+        "display": "+1.2%",
         "year": 2024
       },
       {
-        "label": "South Africa → China · Minerals · export · 2023",
-        "value": -10.0,
-        "display": "-10.0%",
-        "year": 2023
+        "label": "Brazil → China · Minerals · export · 2024",
+        "value": 3.0,
+        "display": "+3.0%",
+        "year": 2024
       },
       {
-        "label": "Brazil → China · Minerals · export · 2023",
-        "value": -9.5,
-        "display": "-9.5%",
-        "year": 2023
+        "label": "South Africa → China · Minerals · export · 2024",
+        "value": 3.4,
+        "display": "+3.4%",
+        "year": 2024
       },
       {
         "label": "Mexico → USA · Manufacturing · export · 2024",
-        "value": 12.0,
-        "display": "+12.0%",
-        "year": 2024
-      },
-      {
-        "label": "India → Russia · Energy · import · 2024",
-        "value": 13.6,
-        "display": "+13.6%",
-        "year": 2024
-      },
-      {
-        "label": "Vietnam → USA · Textiles · export · 2024",
-        "value": 20.0,
-        "display": "+20.0%",
+        "value": 8.5,
+        "display": "+8.5%",
         "year": 2024
       }
     ]
   },
   "briefs": [
     {
-      "summary": "India energy imports from Russia move from $2.5B in 2022 to $9.2B in 2024 (+268.0%). The 2024 step versus 2023 is +13.6%. South Africa minerals exports to China move from $3.0B in 2022 to $2.7B in 2023 (-10.0%). Brazil minerals exports to China move from $4.2B in 2022 to $3.8B in 2023 (-9.5%).",
-      "key_regions_sectors": "India energy imports from Russia move from $2.5B in 2022 to $9.2B in 2024 (+268.0%). The 2024 step versus 2023 is +13.6%. Brazil minerals exports to China move from $4.2B in 2022 to $3.8B in 2023 (-9.5%). South Africa minerals exports to China move from $3.0B in 2022 to $2.7B in 2023 (-10.0%). Brazil minerals exports to India are $1.1B in 2024. South Africa minerals exports to India are $800.0M in 2023.",
-      "so_what": "Inside this illustrative panel, higher paths are India energy imports from Russia. Lower paths are Brazil minerals exports to China, South Africa minerals exports to China. That is a partner shift in the seeded rows, not an official trade balance or a forecast.",
-      "whats_next": "The next point that would change this brief is another year of India → Russia · Energy · import. Until that row exists, the chart and this text describe the same database values.",
+      "summary": "Brazil minerals exports to China move from $18.8B in 2022 to $21.3B in 2024 (+13.5%). The 2024 step versus 2023 is +3.0%. South Africa minerals exports to China move from $7.4B in 2022 to $8.2B in 2024 (+11.6%). The 2024 step versus 2023 is +3.4%.",
+      "key_regions_sectors": "Brazil minerals exports to China move from $18.8B in 2022 to $21.3B in 2024 (+13.5%). The 2024 step versus 2023 is +3.0%. South Africa minerals exports to China move from $7.4B in 2022 to $8.2B in 2024 (+11.6%). The 2024 step versus 2023 is +3.4%.",
+      "so_what": "In this UN Comtrade slice, the filtered flows are higher over the period: Brazil minerals exports to China, South Africa minerals exports to China. That is a change in the selected HS chapters, not a full trade balance or a forecast.",
+      "whats_next": "The next point that would change this brief is another year of Brazil → China · Minerals · export. Until that row exists, the chart and this text describe the same database values.",
       "bullets": [
-        "India energy imports from Russia move from $2.5B in 2022 to $9.2B in 2024 (+268.0%). The 2024 step versus 2023 is +13.6%",
-        "South Africa minerals exports to China move from $3.0B in 2022 to $2.7B in 2023 (-10.0%)",
-        "Brazil minerals exports to China move from $4.2B in 2022 to $3.8B in 2023 (-9.5%)"
+        "Brazil minerals exports to China move from $18.8B in 2022 to $21.3B in 2024 (+13.5%). The 2024 step versus 2023 is +3.0%",
+        "South Africa minerals exports to China move from $7.4B in 2022 to $8.2B in 2024 (+11.6%). The 2024 step versus 2023 is +3.4%"
       ],
       "disclaimer": "Machine-generated brief. Figures come from the local trade panel and tool output; verify them against primary sources before use.",
       "tool_trace": [
         {
           "name": "list_regions",
           "args": {},
-          "latency_ms": 0.21
+          "latency_ms": 0.66
         },
         {
           "name": "list_sectors",
           "args": {},
-          "latency_ms": 0.18
+          "latency_ms": 0.38
         },
         {
           "name": "rag_retrieve",
@@ -123,14 +111,14 @@
             "query": "BRICS minerals and energy",
             "limit": 5
           },
-          "latency_ms": 0.19
+          "latency_ms": 0.46
         },
         {
           "name": "get_region_summary",
           "args": {
             "region": "Brazil"
           },
-          "latency_ms": 0.2
+          "latency_ms": 0.62
         },
         {
           "name": "get_trade_trends",
@@ -138,14 +126,21 @@
             "region": "Brazil",
             "limit": 8
           },
-          "latency_ms": 0.37
+          "latency_ms": 0.74
+        },
+        {
+          "name": "get_macro_context",
+          "args": {
+            "region": "Brazil"
+          },
+          "latency_ms": 0.78
         },
         {
           "name": "get_region_summary",
           "args": {
             "region": "Russia"
           },
-          "latency_ms": 0.19
+          "latency_ms": 0.69
         },
         {
           "name": "get_trade_trends",
@@ -153,14 +148,21 @@
             "region": "Russia",
             "limit": 8
           },
-          "latency_ms": 0.3
+          "latency_ms": 0.61
+        },
+        {
+          "name": "get_macro_context",
+          "args": {
+            "region": "Russia"
+          },
+          "latency_ms": 0.67
         },
         {
           "name": "get_region_summary",
           "args": {
             "region": "India"
           },
-          "latency_ms": 0.18
+          "latency_ms": 0.23
         },
         {
           "name": "get_trade_trends",
@@ -168,14 +170,21 @@
             "region": "India",
             "limit": 8
           },
-          "latency_ms": 0.29
+          "latency_ms": 0.38
+        },
+        {
+          "name": "get_macro_context",
+          "args": {
+            "region": "India"
+          },
+          "latency_ms": 0.49
         },
         {
           "name": "get_region_summary",
           "args": {
             "region": "China"
           },
-          "latency_ms": 0.18
+          "latency_ms": 0.25
         },
         {
           "name": "get_trade_trends",
@@ -183,14 +192,21 @@
             "region": "China",
             "limit": 8
           },
-          "latency_ms": 0.29
+          "latency_ms": 0.4
+        },
+        {
+          "name": "get_macro_context",
+          "args": {
+            "region": "China"
+          },
+          "latency_ms": 0.47
         },
         {
           "name": "get_region_summary",
           "args": {
             "region": "South Africa"
           },
-          "latency_ms": 0.18
+          "latency_ms": 0.22
         },
         {
           "name": "get_trade_trends",
@@ -198,14 +214,21 @@
             "region": "South Africa",
             "limit": 8
           },
-          "latency_ms": 0.28
+          "latency_ms": 0.36
+        },
+        {
+          "name": "get_macro_context",
+          "args": {
+            "region": "South Africa"
+          },
+          "latency_ms": 0.48
         },
         {
           "name": "get_sector_summary",
           "args": {
             "sector": "Minerals"
           },
-          "latency_ms": 0.19
+          "latency_ms": 0.23
         },
         {
           "name": "get_yoy_growth",
@@ -214,14 +237,14 @@
             "year_from": 2022,
             "year_to": 2024
           },
-          "latency_ms": 0.28
+          "latency_ms": 0.44
         },
         {
           "name": "get_sector_summary",
           "args": {
             "sector": "Energy"
           },
-          "latency_ms": 0.18
+          "latency_ms": 0.24
         },
         {
           "name": "get_yoy_growth",
@@ -230,7 +253,7 @@
             "year_from": 2022,
             "year_to": 2024
           },
-          "latency_ms": 0.24
+          "latency_ms": 0.31
         },
         {
           "name": "query_trade_flows",
@@ -241,7 +264,7 @@
             "year_from": 2022,
             "limit": 20
           },
-          "latency_ms": 0.18
+          "latency_ms": 0.23
         },
         {
           "name": "query_trade_flows",
@@ -252,78 +275,55 @@
             "year_from": 2022,
             "limit": 20
           },
-          "latency_ms": 0.17
+          "latency_ms": 0.21
         }
       ],
       "focus": "BRICS minerals and energy",
-      "generated_at": "2026-10-13T22:25:57Z",
-      "full_report": "### Summary\n\nIndia energy imports from Russia move from $2.5B in 2022 to $9.2B in 2024 (+268.0%). The 2024 step versus 2023 is +13.6%. South Africa minerals exports to China move from $3.0B in 2022 to $2.7B in 2023 (-10.0%). Brazil minerals exports to China move from $4.2B in 2022 to $3.8B in 2023 (-9.5%).\n\n### Key regions and sectors\n\nIndia energy imports from Russia move from $2.5B in 2022 to $9.2B in 2024 (+268.0%). The 2024 step versus 2023 is +13.6%. Brazil minerals exports to China move from $4.2B in 2022 to $3.8B in 2023 (-9.5%). South Africa minerals exports to China move from $3.0B in 2022 to $2.7B in 2023 (-10.0%). Brazil minerals exports to India are $1.1B in 2024. South Africa minerals exports to India are $800.0M in 2023.\n\n### So what\n\nInside this illustrative panel, higher paths are India energy imports from Russia. Lower paths are Brazil minerals exports to China, South Africa minerals exports to China. That is a partner shift in the seeded rows, not an official trade balance or a forecast.\n\n### What's next\n\nThe next point that would change this brief is another year of India → Russia · Energy · import. Until that row exists, the chart and this text describe the same database values.\n\nMachine-generated brief. Figures come from the local trade panel and tool output; verify them against primary sources before use.",
+      "generated_at": "2026-10-13T23:30:29Z",
+      "full_report": "### Summary\n\nBrazil minerals exports to China move from $18.8B in 2022 to $21.3B in 2024 (+13.5%). The 2024 step versus 2023 is +3.0%. South Africa minerals exports to China move from $7.4B in 2022 to $8.2B in 2024 (+11.6%). The 2024 step versus 2023 is +3.4%.\n\n### Key regions and sectors\n\nBrazil minerals exports to China move from $18.8B in 2022 to $21.3B in 2024 (+13.5%). The 2024 step versus 2023 is +3.0%. South Africa minerals exports to China move from $7.4B in 2022 to $8.2B in 2024 (+11.6%). The 2024 step versus 2023 is +3.4%.\n\n### So what\n\nIn this UN Comtrade slice, the filtered flows are higher over the period: Brazil minerals exports to China, South Africa minerals exports to China. That is a change in the selected HS chapters, not a full trade balance or a forecast.\n\n### What's next\n\nThe next point that would change this brief is another year of Brazil → China · Minerals · export. Until that row exists, the chart and this text describe the same database values.\n\nMachine-generated brief. Figures come from the local trade panel and tool output; verify them against primary sources before use.",
       "source": "tool_output",
       "title": "BRICS",
       "id": "brics",
       "kicker": "Minerals and energy",
+      "macro": "World Bank merchandise exports: Brazil $337.0B (2024); Russia $433.6B (2024); India $442.9B (2024); China $3.6T (2024); South Africa $110.1B (2024). World Bank merchandise imports: Brazil $278.0B (2024); Russia $301.6B (2024); India $718.3B (2024); China $2.6T (2024); South Africa $123.5B (2024). IMF WEO current account: Brazil -$65.3B (2024), -3.0% of GDP; Russia $63.3B (2024), +2.9% of GDP; India -$22.9B (2024), -0.6% of GDP; China $458.5B (2024), +2.4% of GDP; South Africa -$2.6B (2024), -0.7% of GDP.",
       "charts": {
         "top_flows": [
           {
-            "label": "India → Russia · Energy · import",
-            "value": 9200000000.0,
-            "display": "$9.2B (2024)",
-            "year": 2024
-          },
-          {
             "label": "Brazil → China · Minerals · export",
-            "value": 3800000000.0,
-            "display": "$3.8B (2023)",
-            "year": 2023
+            "value": 21329438214.0,
+            "display": "$21.3B (2024)",
+            "year": 2024
           },
           {
             "label": "South Africa → China · Minerals · export",
-            "value": 2700000000.0,
-            "display": "$2.7B (2023)",
-            "year": 2023
-          },
-          {
-            "label": "Brazil → India · Minerals · export",
-            "value": 1100000000.0,
-            "display": "$1.1B (2024)",
+            "value": 8222206414.364,
+            "display": "$8.2B (2024)",
             "year": 2024
-          },
-          {
-            "label": "South Africa → India · Minerals · export",
-            "value": 800000000.0,
-            "display": "$800.0M (2023)",
-            "year": 2023
           }
         ],
         "yoy": [
           {
-            "label": "South Africa → China · Minerals · export · 2023",
-            "value": -10.0,
-            "display": "-10.0%",
-            "year": 2023
+            "label": "Brazil → China · Minerals · export · 2024",
+            "value": 3.0,
+            "display": "+3.0%",
+            "year": 2024
           },
           {
-            "label": "Brazil → China · Minerals · export · 2023",
-            "value": -9.5,
-            "display": "-9.5%",
-            "year": 2023
-          },
-          {
-            "label": "India → Russia · Energy · import · 2024",
-            "value": 13.6,
-            "display": "+13.6%",
+            "label": "South Africa → China · Minerals · export · 2024",
+            "value": 3.4,
+            "display": "+3.4%",
             "year": 2024
           }
         ]
       }
     },
     {
-      "summary": "China electronics exports to USA move from $120.0B in 2022 to $85.0B in 2024 (-29.2%). The 2024 step versus 2023 is -13.3%.",
-      "key_regions_sectors": "China electronics exports to USA move from $120.0B in 2022 to $85.0B in 2024 (-29.2%). The 2024 step versus 2023 is -13.3%.",
-      "so_what": "Inside this illustrative panel, the filtered flows are lower over the period: China electronics exports to USA. That is a partner shift in the seeded rows, not an official trade balance or a forecast.",
+      "summary": "China electronics exports to USA move from $142.6B in 2022 to $126.0B in 2024 (-11.6%). The 2024 step versus 2023 is +1.2%.",
+      "key_regions_sectors": "China electronics exports to USA move from $142.6B in 2022 to $126.0B in 2024 (-11.6%). The 2024 step versus 2023 is +1.2%.",
+      "so_what": "In this UN Comtrade slice, the filtered flows are lower over the period: China electronics exports to USA. That is a change in the selected HS chapters, not a full trade balance or a forecast.",
       "whats_next": "The next point that would change this brief is another year of China → USA · Electronics · export. Until that row exists, the chart and this text describe the same database values.",
       "bullets": [
-        "China electronics exports to USA move from $120.0B in 2022 to $85.0B in 2024 (-29.2%). The 2024 step versus 2023 is -13.3%"
+        "China electronics exports to USA move from $142.6B in 2022 to $126.0B in 2024 (-11.6%). The 2024 step versus 2023 is +1.2%"
       ],
       "disclaimer": "Machine-generated brief. Figures come from the local trade panel and tool output; verify them against primary sources before use.",
       "tool_trace": [
@@ -335,7 +335,7 @@
         {
           "name": "list_sectors",
           "args": {},
-          "latency_ms": 0.16
+          "latency_ms": 0.15
         },
         {
           "name": "rag_retrieve",
@@ -343,14 +343,14 @@
             "query": "US-China electronics",
             "limit": 5
           },
-          "latency_ms": 0.17
+          "latency_ms": 0.16
         },
         {
           "name": "get_region_summary",
           "args": {
             "region": "USA"
           },
-          "latency_ms": 0.19
+          "latency_ms": 0.18
         },
         {
           "name": "get_trade_trends",
@@ -358,7 +358,14 @@
             "region": "USA",
             "limit": 8
           },
-          "latency_ms": 0.3
+          "latency_ms": 0.33
+        },
+        {
+          "name": "get_macro_context",
+          "args": {
+            "region": "USA"
+          },
+          "latency_ms": 0.39
         },
         {
           "name": "get_region_summary",
@@ -373,14 +380,21 @@
             "region": "China",
             "limit": 8
           },
-          "latency_ms": 0.28
+          "latency_ms": 0.47
+        },
+        {
+          "name": "get_macro_context",
+          "args": {
+            "region": "China"
+          },
+          "latency_ms": 0.43
         },
         {
           "name": "get_sector_summary",
           "args": {
             "sector": "Electronics"
           },
-          "latency_ms": 0.18
+          "latency_ms": 0.2
         },
         {
           "name": "get_yoy_growth",
@@ -389,7 +403,7 @@
             "year_from": 2022,
             "year_to": 2024
           },
-          "latency_ms": 0.24
+          "latency_ms": 0.29
         },
         {
           "name": "query_trade_flows",
@@ -400,7 +414,7 @@
             "year_from": 2022,
             "limit": 20
           },
-          "latency_ms": 0.17
+          "latency_ms": 0.18
         },
         {
           "name": "query_trade_flows",
@@ -415,51 +429,52 @@
         }
       ],
       "focus": "US-China electronics",
-      "generated_at": "2026-10-13T22:25:57Z",
-      "full_report": "### Summary\n\nChina electronics exports to USA move from $120.0B in 2022 to $85.0B in 2024 (-29.2%). The 2024 step versus 2023 is -13.3%.\n\n### Key regions and sectors\n\nChina electronics exports to USA move from $120.0B in 2022 to $85.0B in 2024 (-29.2%). The 2024 step versus 2023 is -13.3%.\n\n### So what\n\nInside this illustrative panel, the filtered flows are lower over the period: China electronics exports to USA. That is a partner shift in the seeded rows, not an official trade balance or a forecast.\n\n### What's next\n\nThe next point that would change this brief is another year of China → USA · Electronics · export. Until that row exists, the chart and this text describe the same database values.\n\nMachine-generated brief. Figures come from the local trade panel and tool output; verify them against primary sources before use.",
+      "generated_at": "2026-10-13T23:30:29Z",
+      "full_report": "### Summary\n\nChina electronics exports to USA move from $142.6B in 2022 to $126.0B in 2024 (-11.6%). The 2024 step versus 2023 is +1.2%.\n\n### Key regions and sectors\n\nChina electronics exports to USA move from $142.6B in 2022 to $126.0B in 2024 (-11.6%). The 2024 step versus 2023 is +1.2%.\n\n### So what\n\nIn this UN Comtrade slice, the filtered flows are lower over the period: China electronics exports to USA. That is a change in the selected HS chapters, not a full trade balance or a forecast.\n\n### What's next\n\nThe next point that would change this brief is another year of China → USA · Electronics · export. Until that row exists, the chart and this text describe the same database values.\n\nMachine-generated brief. Figures come from the local trade panel and tool output; verify them against primary sources before use.",
       "source": "tool_output",
       "title": "US–China electronics",
       "id": "us-china-electronics",
       "kicker": "One sector, two directions of travel",
+      "macro": "World Bank merchandise exports: USA $2.1T (2024); China $3.6T (2024). World Bank merchandise imports: USA $3.4T (2024); China $2.6T (2024). IMF WEO current account: USA -$1.2T (2024), -4.1% of GDP; China $458.5B (2024), +2.4% of GDP.",
       "charts": {
         "top_flows": [
           {
             "label": "China → USA · Electronics · export",
-            "value": 85000000000.0,
-            "display": "$85.0B (2024)",
+            "value": 125984078329.0,
+            "display": "$126.0B (2024)",
             "year": 2024
           }
         ],
         "yoy": [
           {
             "label": "China → USA · Electronics · export · 2024",
-            "value": -13.3,
-            "display": "-13.3%",
+            "value": 1.2,
+            "display": "+1.2%",
             "year": 2024
           }
         ]
       }
     },
     {
-      "summary": "Vietnam textiles exports to USA move from $12.0B in 2022 to $18.0B in 2024 (+50.0%). The 2024 step versus 2023 is +20.0%. Mexico manufacturing exports to USA move from $220.0B in 2022 to $280.0B in 2024 (+27.3%). The 2024 step versus 2023 is +12.0%.",
-      "key_regions_sectors": "Mexico manufacturing exports to USA move from $220.0B in 2022 to $280.0B in 2024 (+27.3%). The 2024 step versus 2023 is +12.0%. Vietnam textiles exports to USA move from $12.0B in 2022 to $18.0B in 2024 (+50.0%). The 2024 step versus 2023 is +20.0%.",
-      "so_what": "Inside this illustrative panel, the filtered flows are higher over the period: Mexico manufacturing exports to USA, Vietnam textiles exports to USA. That is a partner shift in the seeded rows, not an official trade balance or a forecast.",
+      "summary": "Vietnam textiles exports to USA move from $17.2B in 2022 to $14.3B in 2023 (-17.0%). Mexico manufacturing exports to USA move from $203.5B in 2022 to $230.8B in 2024 (+13.4%). The 2024 step versus 2023 is +8.5%.",
+      "key_regions_sectors": "Mexico manufacturing exports to USA move from $203.5B in 2022 to $230.8B in 2024 (+13.4%). The 2024 step versus 2023 is +8.5%. Vietnam textiles exports to USA move from $17.2B in 2022 to $14.3B in 2023 (-17.0%).",
+      "so_what": "In this UN Comtrade slice, higher paths are Mexico manufacturing exports to USA. Lower paths are Vietnam textiles exports to USA. That is a change in the selected HS chapters, not a full trade balance or a forecast.",
       "whats_next": "The next point that would change this brief is another year of Vietnam → USA · Textiles · export. Until that row exists, the chart and this text describe the same database values.",
       "bullets": [
-        "Vietnam textiles exports to USA move from $12.0B in 2022 to $18.0B in 2024 (+50.0%). The 2024 step versus 2023 is +20.0%",
-        "Mexico manufacturing exports to USA move from $220.0B in 2022 to $280.0B in 2024 (+27.3%). The 2024 step versus 2023 is +12.0%"
+        "Vietnam textiles exports to USA move from $17.2B in 2022 to $14.3B in 2023 (-17.0%)",
+        "Mexico manufacturing exports to USA move from $203.5B in 2022 to $230.8B in 2024 (+13.4%). The 2024 step versus 2023 is +8.5%"
       ],
       "disclaimer": "Machine-generated brief. Figures come from the local trade panel and tool output; verify them against primary sources before use.",
       "tool_trace": [
         {
           "name": "list_regions",
           "args": {},
-          "latency_ms": 0.17
+          "latency_ms": 0.16
         },
         {
           "name": "list_sectors",
           "args": {},
-          "latency_ms": 0.16
+          "latency_ms": 0.14
         },
         {
           "name": "rag_retrieve",
@@ -467,14 +482,14 @@
             "query": "Vietnam and Mexico textiles and manufacturing",
             "limit": 5
           },
-          "latency_ms": 0.18
+          "latency_ms": 0.16
         },
         {
           "name": "get_region_summary",
           "args": {
             "region": "Vietnam"
           },
-          "latency_ms": 0.21
+          "latency_ms": 0.16
         },
         {
           "name": "get_trade_trends",
@@ -482,14 +497,21 @@
             "region": "Vietnam",
             "limit": 8
           },
-          "latency_ms": 0.43
+          "latency_ms": 0.28
+        },
+        {
+          "name": "get_macro_context",
+          "args": {
+            "region": "Vietnam"
+          },
+          "latency_ms": 0.35
         },
         {
           "name": "get_region_summary",
           "args": {
             "region": "Mexico"
           },
-          "latency_ms": 0.22
+          "latency_ms": 0.16
         },
         {
           "name": "get_trade_trends",
@@ -497,14 +519,21 @@
             "region": "Mexico",
             "limit": 8
           },
-          "latency_ms": 0.31
+          "latency_ms": 0.26
+        },
+        {
+          "name": "get_macro_context",
+          "args": {
+            "region": "Mexico"
+          },
+          "latency_ms": 0.34
         },
         {
           "name": "get_sector_summary",
           "args": {
             "sector": "Textiles"
           },
-          "latency_ms": 0.19
+          "latency_ms": 0.15
         },
         {
           "name": "get_yoy_growth",
@@ -513,14 +542,14 @@
             "year_from": 2022,
             "year_to": 2024
           },
-          "latency_ms": 0.27
+          "latency_ms": 0.22
         },
         {
           "name": "get_sector_summary",
           "args": {
             "sector": "Manufacturing"
           },
-          "latency_ms": 0.18
+          "latency_ms": 0.15
         },
         {
           "name": "get_yoy_growth",
@@ -529,7 +558,7 @@
             "year_from": 2022,
             "year_to": 2024
           },
-          "latency_ms": 0.24
+          "latency_ms": 0.21
         },
         {
           "name": "query_trade_flows",
@@ -540,7 +569,7 @@
             "year_from": 2022,
             "limit": 20
           },
-          "latency_ms": 0.19
+          "latency_ms": 0.15
         },
         {
           "name": "query_trade_flows",
@@ -551,42 +580,43 @@
             "year_from": 2022,
             "limit": 20
           },
-          "latency_ms": 0.17
+          "latency_ms": 0.14
         }
       ],
       "focus": "Vietnam and Mexico textiles and manufacturing",
-      "generated_at": "2026-10-13T22:25:57Z",
-      "full_report": "### Summary\n\nVietnam textiles exports to USA move from $12.0B in 2022 to $18.0B in 2024 (+50.0%). The 2024 step versus 2023 is +20.0%. Mexico manufacturing exports to USA move from $220.0B in 2022 to $280.0B in 2024 (+27.3%). The 2024 step versus 2023 is +12.0%.\n\n### Key regions and sectors\n\nMexico manufacturing exports to USA move from $220.0B in 2022 to $280.0B in 2024 (+27.3%). The 2024 step versus 2023 is +12.0%. Vietnam textiles exports to USA move from $12.0B in 2022 to $18.0B in 2024 (+50.0%). The 2024 step versus 2023 is +20.0%.\n\n### So what\n\nInside this illustrative panel, the filtered flows are higher over the period: Mexico manufacturing exports to USA, Vietnam textiles exports to USA. That is a partner shift in the seeded rows, not an official trade balance or a forecast.\n\n### What's next\n\nThe next point that would change this brief is another year of Vietnam → USA · Textiles · export. Until that row exists, the chart and this text describe the same database values.\n\nMachine-generated brief. Figures come from the local trade panel and tool output; verify them against primary sources before use.",
+      "generated_at": "2026-10-13T23:30:29Z",
+      "full_report": "### Summary\n\nVietnam textiles exports to USA move from $17.2B in 2022 to $14.3B in 2023 (-17.0%). Mexico manufacturing exports to USA move from $203.5B in 2022 to $230.8B in 2024 (+13.4%). The 2024 step versus 2023 is +8.5%.\n\n### Key regions and sectors\n\nMexico manufacturing exports to USA move from $203.5B in 2022 to $230.8B in 2024 (+13.4%). The 2024 step versus 2023 is +8.5%. Vietnam textiles exports to USA move from $17.2B in 2022 to $14.3B in 2023 (-17.0%).\n\n### So what\n\nIn this UN Comtrade slice, higher paths are Mexico manufacturing exports to USA. Lower paths are Vietnam textiles exports to USA. That is a change in the selected HS chapters, not a full trade balance or a forecast.\n\n### What's next\n\nThe next point that would change this brief is another year of Vietnam → USA · Textiles · export. Until that row exists, the chart and this text describe the same database values.\n\nMachine-generated brief. Figures come from the local trade panel and tool output; verify them against primary sources before use.",
       "source": "tool_output",
       "title": "Vietnam and Mexico",
       "id": "nearshoring",
       "kicker": "Supply into the United States",
+      "macro": "World Bank merchandise exports: Vietnam $404.8B (2024); Mexico $617.7B (2024). World Bank merchandise imports: Vietnam $380.5B (2024); Mexico $655.3B (2024). IMF WEO current account: Vietnam $30.4B (2024), +6.6% of GDP; Mexico -$16.8B (2024), -0.9% of GDP.",
       "charts": {
         "top_flows": [
           {
             "label": "Mexico → USA · Manufacturing · export",
-            "value": 280000000000.0,
-            "display": "$280.0B (2024)",
+            "value": 230751305192.0,
+            "display": "$230.8B (2024)",
             "year": 2024
           },
           {
             "label": "Vietnam → USA · Textiles · export",
-            "value": 18000000000.0,
-            "display": "$18.0B (2024)",
-            "year": 2024
+            "value": 14273250616.369999,
+            "display": "$14.3B (2023)",
+            "year": 2023
           }
         ],
         "yoy": [
           {
-            "label": "Mexico → USA · Manufacturing · export · 2024",
-            "value": 12.0,
-            "display": "+12.0%",
-            "year": 2024
+            "label": "Vietnam → USA · Textiles · export · 2023",
+            "value": -17.0,
+            "display": "-17.0%",
+            "year": 2023
           },
           {
-            "label": "Vietnam → USA · Textiles · export · 2024",
-            "value": 20.0,
-            "display": "+20.0%",
+            "label": "Mexico → USA · Manufacturing · export · 2024",
+            "value": 8.5,
+            "display": "+8.5%",
             "year": 2024
           }
         ]

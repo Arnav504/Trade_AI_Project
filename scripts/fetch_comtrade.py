@@ -48,37 +48,136 @@ def _api_key():
 
 M49 = {
     "156": "China", "842": "USA", "076": "Brazil", "356": "India", "643": "Russia",
-    "710": "South Africa", "484": "Mexico", "704": "Viet Nam", "818": "Egypt",
+    "710": "South Africa", "484": "Mexico", "704": "Vietnam", "818": "Egypt",
     "360": "Indonesia", "784": "United Arab Emirates", "0": "World",
 }
 
+_COUNTRY_ALIASES = {
+    "united states": "USA",
+    "united states of america": "USA",
+    "usa": "USA",
+    "viet nam": "Vietnam",
+    "vietnam": "Vietnam",
+    "russian federation": "Russia",
+    "russia": "Russia",
+    "china": "China",
+    "india": "India",
+    "brazil": "Brazil",
+    "mexico": "Mexico",
+    "south africa": "South Africa",
+}
+
+HS_SECTOR = {
+    "26": "Minerals",
+    "27": "Energy",
+    "61": "Textiles",
+    "62": "Textiles",
+    "84": "Manufacturing",
+    "85": "Electronics",
+    "87": "Manufacturing",
+}
+
+# Reporter, partner, HS chapter, stored sector, and flow for the public panel.
+CORRIDORS = (
+    {"reporter": "356", "partner": "643", "cmd": "27", "sector": "Energy", "flow": "import"},
+    {"reporter": "076", "partner": "156", "cmd": "26", "sector": "Minerals", "flow": "export"},
+    {"reporter": "710", "partner": "156", "cmd": "26", "sector": "Minerals", "flow": "export"},
+    {"reporter": "156", "partner": "842", "cmd": "85", "sector": "Electronics", "flow": "export"},
+    {"reporter": "704", "partner": "842", "cmd": "61", "sector": "Textiles", "flow": "export"},
+    {"reporter": "704", "partner": "842", "cmd": "62", "sector": "Textiles", "flow": "export"},
+    {"reporter": "484", "partner": "842", "cmd": "84", "sector": "Manufacturing", "flow": "export"},
+    {"reporter": "484", "partner": "842", "cmd": "87", "sector": "Manufacturing", "flow": "export"},
+)
+
+
+def _text(value) -> str:
+    if value is None:
+        return ""
+    try:
+        if value != value:
+            return ""
+    except Exception:
+        pass
+    return str(value).strip()
+
+
+def _normalize_country(name: str) -> str:
+    text = " ".join(_text(name).replace(".", "").split())
+    if not text:
+        return ""
+    return _COUNTRY_ALIASES.get(text.lower(), text)
+
 
 def _country_name(code) -> str:
-    if code is None:
+    if code is None or _text(code) == "":
         return "Unknown"
-    return M49.get(str(code).strip(), str(code).strip())
+    key = _text(code)
+    if key.isdigit():
+        key = "0" if key == "0" else key.zfill(3)
+    return _normalize_country(M49.get(key, key))
+
+
+def _cmd_digits(value) -> str:
+    text = _text(value)
+    try:
+        number = float(text)
+        if number == int(number):
+            return str(int(number))
+    except (TypeError, ValueError):
+        pass
+    return "".join(ch for ch in text if ch.isdigit())
+
+
+def _sector_from_record(rec: dict) -> str:
+    forced = _text(rec.get("_sector"))
+    if forced:
+        return forced
+    digits = _cmd_digits(rec.get("cmdCode"))
+    chapter = digits[:2] if len(digits) >= 2 else ""
+    if chapter in HS_SECTOR:
+        return HS_SECTOR[chapter]
+    return _text(rec.get("cmdDesc") or rec.get("cmdCode") or rec.get("aggLevel") or "TOTAL") or "TOTAL"
+
+
+def _flow_from_record(rec: dict) -> str:
+    forced = _text(rec.get("_flow")).lower()
+    if forced in ("import", "export"):
+        return forced
+    flow_raw = _text(rec.get("flowDesc") or rec.get("rgDesc"))
+    code = _text(rec.get("flowCode"))
+    if flow_raw.lower().startswith("i") or code in ("1", "M"):
+        return "import"
+    return "export"
 
 
 def _map_comtrade_record(rec: dict) -> tuple:
     """Map one Comtrade API record to (year, reporter_region, partner_region, sector, flow_type, value_usd)."""
-    year = rec.get("period") or rec.get("refYear") or rec.get("year") or (str(rec.get("pfDate", ""))[:4] or 0)
+    year = rec.get("period") or rec.get("refYear") or rec.get("year") or (_text(rec.get("pfDate"))[:4] or 0)
     try:
         year = int(year) if year else 0
     except (TypeError, ValueError):
         return None
-    reporter = (rec.get("reporterDesc") or rec.get("reporter") or _country_name(rec.get("reporterCode"))).strip()
-    partner = (rec.get("partnerDesc") or rec.get("partner") or _country_name(rec.get("partnerCode"))).strip()
-    sector = (rec.get("cmdDesc") or rec.get("cmdCode") or rec.get("aggLevel") or "TOTAL").strip()
-    flow_raw = rec.get("flowDesc") or rec.get("flowCode") or rec.get("rgDesc") or ""
-    flow = "import" if str(flow_raw).lower().startswith("i") or str(rec.get("flowCode")) in ("1", "M") else "export"
+    reporter = _normalize_country(rec.get("reporterDesc") or rec.get("reporter") or _country_name(rec.get("reporterCode")))
+    partner = _normalize_country(rec.get("partnerDesc") or rec.get("partner") or _country_name(rec.get("partnerCode")))
+    sector = _sector_from_record(rec)
+    flow = _flow_from_record(rec)
     value = rec.get("primaryValue") or rec.get("customsValue") or rec.get("netWgt") or 0
     try:
         value = float(value)
     except (TypeError, ValueError):
         return None
-    if not reporter or not partner:
+    if not reporter or not partner or not year:
         return None
     return (year, reporter, partner, sector, flow, value)
+
+
+def collapse_rows(rows: list) -> list:
+    """Sum HS lines that share a year, pair, sector, and flow."""
+    totals = {}
+    for year, reporter, partner, sector, flow, value in rows:
+        key = (year, reporter, partner, sector, flow)
+        totals[key] = totals.get(key, 0.0) + float(value)
+    return [(*key, value) for key, value in totals.items()]
 
 
 def _dataframe_row_to_record(row) -> dict:
@@ -99,12 +198,36 @@ def _dataframe_row_to_record(row) -> dict:
     return d
 
 
+def _records_from_frame(df) -> list:
+    records = []
+    if df is None or (hasattr(df, "empty") and df.empty):
+        return records
+    if hasattr(df, "iterrows"):
+        for _, row in df.iterrows():
+            rec = dict(row) if hasattr(row, "index") else (row if isinstance(row, dict) else _dataframe_row_to_record(row))
+            if rec:
+                records.append(rec)
+    elif isinstance(df, list):
+        for row in df:
+            records.append(row if isinstance(row, dict) else _dataframe_row_to_record(row))
+    return records
+
+
+def _chapter_rows(records: list, chapter: str) -> list:
+    """Prefer the chapter aggregate so child lines are not added on top of it."""
+    chapter = str(chapter)
+    exact = [rec for rec in records if _cmd_digits(rec.get("cmdCode")) == chapter]
+    return exact or list(records)
+
+
 def fetch_comtrade_via_package(
     years=None,
     reporters=None,
     partner_code=None,
     max_records=500,
     api_key=None,
+    cmd_code="TOTAL",
+    flow_codes=("X", "M"),
 ) -> list:
     """
     Fetch using official comtradeapicall package (pip install comtradeapicall).
@@ -123,7 +246,7 @@ def fetch_comtrade_via_package(
     all_records = []
     for year in years:
         for rep in reporters:
-            for flow_code in ("X", "M"):  # export, import
+            for flow_code in flow_codes:
                 try:
                     if api_key:
                         df = comtradeapicall.getFinalData(
@@ -133,7 +256,7 @@ def fetch_comtrade_via_package(
                             clCode="HS",
                             period=str(year),
                             reporterCode=str(rep),
-                            cmdCode="TOTAL",
+                            cmdCode=str(cmd_code),
                             flowCode=flow_code,
                             partnerCode=partner_code,
                             partner2Code=None,
@@ -153,7 +276,7 @@ def fetch_comtrade_via_package(
                             clCode="HS",
                             period=str(year),
                             reporterCode=str(rep),
-                            cmdCode="TOTAL",
+                            cmdCode=str(cmd_code),
                             flowCode=flow_code,
                             partnerCode=partner_code,
                             partner2Code=None,
@@ -169,17 +292,7 @@ def fetch_comtrade_via_package(
                 except Exception as e:
                     print(f"comtradeapicall request failed (year={year}, reporter={rep}, flow={flow_code}): {e}", file=sys.stderr)
                     continue
-                if df is None or (hasattr(df, "empty") and df.empty):
-                    continue
-                # DataFrame -> list of dicts (each row as dict for _map_comtrade_record)
-                if hasattr(df, "iterrows"):
-                    for _, row in df.iterrows():
-                        rec = dict(row) if hasattr(row, "index") else (row if isinstance(row, dict) else _dataframe_row_to_record(row))
-                        if rec:
-                            all_records.append(rec)
-                elif isinstance(df, list):
-                    for row in df:
-                        all_records.append(row if isinstance(row, dict) else _dataframe_row_to_record(row))
+                all_records.extend(_records_from_frame(df))
                 time.sleep(1)
     return all_records
 
@@ -231,19 +344,85 @@ def fetch_comtrade(
     return all_records
 
 
+def _fetch_slice(year, reporter, partner, cmd, flow, api_key=None) -> list:
+    """One reporter, partner, HS chapter, and flow. Package first, then the HTTP API."""
+    flow_code = "M" if flow == "import" else "X"
+    http_flow = "import" if flow == "import" else "export"
+    records = fetch_comtrade_via_package(
+        years=[year],
+        reporters=[str(reporter)],
+        partner_code=str(partner),
+        max_records=500,
+        api_key=api_key,
+        cmd_code=str(cmd),
+        flow_codes=(flow_code,),
+    )
+    if not records:
+        records = fetch_comtrade(
+            years=[year],
+            reporters=[str(reporter)],
+            partner=str(partner),
+            flow=http_flow,
+            commodity=str(cmd),
+            max_records=500,
+            api_key=api_key,
+        )
+    return _chapter_rows(records, str(cmd))
+
+
+def fetch_corridors(years=None, api_key=None) -> list:
+    """Pull the public HS corridors. Returns raw records tagged with sector and flow."""
+    years = years or [2022, 2023, 2024]
+    api_key = _api_key() or None if api_key is None else (api_key or None)
+    found = []
+    for corridor in CORRIDORS:
+        expected = _country_name(corridor["partner"])
+        for year in years:
+            matched = []
+            other = []
+            for rec in _fetch_slice(
+                year,
+                corridor["reporter"],
+                corridor["partner"],
+                corridor["cmd"],
+                corridor["flow"],
+                api_key,
+            ):
+                item = dict(rec)
+                item["_sector"] = corridor["sector"]
+                item["_flow"] = corridor["flow"]
+                row = _map_comtrade_record(item)
+                if not row:
+                    continue
+                if row[2] == expected:
+                    matched.append(item)
+                elif row[2] not in {"World", "Unknown"}:
+                    other.append(item)
+            found.extend(matched or other)
+    return found
+
+
 def load_into_db(records: list, replace: bool = False) -> int:
-    from config import DB_PATH
-    import sqlite3
-    conn = sqlite3.connect(str(DB_PATH))
+    from database import init_db
+
+    conn = init_db()
     cur = conn.cursor()
+    rows = []
+    for rec in records:
+        if isinstance(rec, tuple):
+            rows.append(rec)
+        else:
+            row = _map_comtrade_record(rec)
+            if row:
+                rows.append(row)
+    rows = collapse_rows(rows)
+    if not rows:
+        conn.close()
+        return 0
     if replace:
         cur.execute("DELETE FROM trade_flows")
     count = 0
-    for rec in records:
-        row = _map_comtrade_record(rec)
-        if not row:
-            continue
-        year, reporter, partner, sector, flow_type, value_usd = row
+    for year, reporter, partner, sector, flow_type, value_usd in rows:
         cur.execute(
             """INSERT INTO trade_flows (year, reporter_region, partner_region, sector, flow_type, value_usd)
                VALUES (?,?,?,?,?,?)""",
@@ -284,6 +463,7 @@ def main():
     parser.add_argument("--no-db", action="store_true", help="Do not load into DB")
     parser.add_argument("--replace", action="store_true", help="Clear trade_flows before loading (use only dynamic data)")
     parser.add_argument("--use-package", action="store_true", help="Use only comtradeapicall package (skip HTTP fallback)")
+    parser.add_argument("--corridors", action="store_true", help="Fetch the public HS corridors instead of a broad reporter pull")
     parser.add_argument("--save-csv", type=str, default=None, metavar="PATH", help="Save mapped data to CSV")
     args = parser.parse_args()
 
@@ -291,19 +471,20 @@ def main():
     ensure_db()
 
     print("Fetching from UN Comtrade ...", file=sys.stderr)
-    records = []
-    # Prefer official comtradeapicall package when installed (more reliable than raw HTTP)
-    records = fetch_comtrade_via_package(
-        years=args.years, reporters=args.reporters, partner_code=args.partner if args.partner != "0" else None,
-        max_records=min(args.max_records, 2500), api_key=_api_key() or None,
-    )
-    if records:
-        print("Fetched via comtradeapicall package.", file=sys.stderr)
-    if not records and not args.use_package:
-        records = fetch_comtrade(
-            years=args.years, reporters=args.reporters, partner=args.partner,
-            flow=args.flow, commodity=args.commodity, max_records=args.max_records,
+    if args.corridors:
+        records = fetch_corridors(years=args.years)
+    else:
+        records = fetch_comtrade_via_package(
+            years=args.years, reporters=args.reporters, partner_code=args.partner if args.partner != "0" else None,
+            max_records=min(args.max_records, 2500), api_key=_api_key() or None,
         )
+        if records:
+            print("Fetched via comtradeapicall package.", file=sys.stderr)
+        if not records and not args.use_package:
+            records = fetch_comtrade(
+                years=args.years, reporters=args.reporters, partner=args.partner,
+                flow=args.flow, commodity=args.commodity, max_records=args.max_records,
+            )
     print(f"Fetched {len(records)} raw records", file=sys.stderr)
 
     if not records:
@@ -317,6 +498,9 @@ def main():
     if not args.no_db:
         n = load_into_db(records, replace=args.replace)
         print(f"Loaded {n} rows into DB", file=sys.stderr)
+        if n == 0:
+            print("No mapped rows. Database left unchanged.", file=sys.stderr)
+            return 1
     return 0
 
 

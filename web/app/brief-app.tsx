@@ -24,6 +24,7 @@ type Brief = {
   key_regions_sectors?: string;
   so_what?: string;
   whats_next?: string;
+  macro?: string;
   disclaimer?: string;
   source?: string;
   focus?: string;
@@ -47,9 +48,9 @@ function closestId(query: string, briefs: Brief[], fallback: string) {
   return briefs.some((brief) => brief.id === fallback) ? fallback : briefs[0]?.id || fallback;
 }
 
-function Bars({ rows, signed }: { rows: ChartRow[]; signed?: boolean }) {
+function Bars({ rows, signed, empty }: { rows: ChartRow[]; signed?: boolean; empty: string }) {
   if (!rows.length) {
-    return <p className="caption">No matching rows in the seeded panel.</p>;
+    return <p className="caption">{empty}</p>;
   }
   const max = Math.max(...rows.map((row) => Math.abs(row.value)), 1);
   return (
@@ -76,19 +77,34 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
   const [activeId, setActiveId] = useState(briefs[0]?.id || "brics");
   const [live, setLive] = useState<Brief | null>(null);
   const [draft, setDraft] = useState("");
+  const [asked, setAsked] = useState("");
   const [status, setStatus] = useState("");
   const [pending, setPending] = useState(false);
   const ticket = useRef(0);
 
   const selected = briefs.find((brief) => brief.id === activeId) ?? briefs[0];
+  const waiting = Boolean(pending && asked && !live);
   const shown = live ?? selected;
-  const charts = live ? gallery.charts : selected.charts ?? gallery.charts;
+  const charts = live?.charts
+    ? live.charts
+    : waiting
+      ? { top_flows: [], yoy: [] }
+      : selected.charts ?? gallery.charts;
   const base = apiBase.replace(/\/$/, "");
+
+  function revealCorridor(query: string, message: string) {
+    setLive(null);
+    setAsked("");
+    setPending(false);
+    setActiveId(closestId(query, briefs, activeId));
+    setStatus(message);
+  }
 
   function selectSample(id: string) {
     ticket.current += 1;
     setPending(false);
     setLive(null);
+    setAsked("");
     setStatus("");
     setActiveId(id);
   }
@@ -99,12 +115,12 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
     if (!query) return;
     const mine = ++ticket.current;
     setLive(null);
-    setActiveId(closestId(query, briefs, activeId));
+    setAsked(query);
+    setPending(true);
     if (!base) {
-      setStatus("Live generation is not connected on this deploy. Showing the closest sample brief.");
+      revealCorridor(query, "Live generation is not connected on this deploy. Showing the closest corridor for this question.");
       return;
     }
-    setPending(true);
     setStatus("Checking the cache…");
     try {
       const response = await fetch(`${base}/analyze`, {
@@ -115,18 +131,18 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
       const data = await response.json().catch(() => ({}));
       if (mine !== ticket.current) return;
       if (response.status === 429 || !response.ok) {
-        const detail = typeof data.detail === "string" ? data.detail : "Showing the closest sample brief.";
-        setStatus(detail);
-        setPending(false);
+        const detail = typeof data.detail === "string" ? data.detail : "Showing the closest corridor for this question.";
+        revealCorridor(query, detail);
         return;
       }
       if (data.status === "complete" && data.brief) {
+        setAsked("");
         setLive(data.brief);
-        setStatus(data.cached ? "Cached brief. Charts below stay on the seeded panel." : "Live brief. Charts below stay on the seeded panel.");
+        setStatus(data.cached ? "Cached brief. The bars use the same rows as this answer." : "Live brief. The bars use the same rows as this answer.");
         setPending(false);
         return;
       }
-      setStatus("Generating. The sample brief stays up until the model finishes.");
+      setStatus("Generating an answer to your question.");
       const jobId = data.job_id as string;
       for (let attempt = 0; attempt < 40; attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -139,34 +155,32 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
           job = await poll.json();
         } catch {
           if (mine !== ticket.current) return;
-          setStatus("The analysis service returned an unreadable status. Showing the closest sample brief.");
-          setPending(false);
+          revealCorridor(query, "The analysis service returned an unreadable status. Showing the closest corridor for this question.");
           return;
         }
         if (!job || typeof job !== "object") {
           if (mine !== ticket.current) return;
-          setStatus("The analysis service returned an unreadable status. Showing the closest sample brief.");
-          setPending(false);
+          revealCorridor(query, "The analysis service returned an unreadable status. Showing the closest corridor for this question.");
           return;
         }
         if (job.status === "complete" && job.brief) {
+          setAsked("");
           setLive(job.brief);
-          setStatus("Live brief ready. Charts below stay on the seeded panel.");
+          setStatus("Live brief. The bars use the same rows as this answer.");
           setPending(false);
           return;
         }
         if (job.status === "error") {
-          setStatus(job.error || "Generation failed. Showing the closest sample brief.");
-          setPending(false);
+          revealCorridor(query, job.error || "Generation failed. Showing the closest corridor for this question.");
           return;
         }
       }
-      setStatus("Still running. The sample brief stays on screen. Ask again in a minute to read the cached result.");
+      setAsked("");
+      setStatus("Still running. Ask again in a minute to read the cached result.");
       setPending(false);
     } catch {
       if (mine !== ticket.current) return;
-      setStatus("The analysis service is unreachable. Showing the closest sample brief.");
-      setPending(false);
+      revealCorridor(query, "The analysis service is unreachable. Showing the closest corridor for this question.");
     }
   }
 
@@ -181,8 +195,8 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
         <p className="kicker">Trade sentiment briefs</p>
         <h1>What the panel says, with the numbers attached.</h1>
         <p className="lede">
-          Three briefs are already computed from the database tools. A live query calls the model,
-          rate-limited, and falls back to the closest sample if generation is still running or the API is down.
+          Three briefs are already computed from the trade rows. A question stays on screen until an answer
+          arrives, and the bars use those same rows. If generation is unavailable, the closest corridor stays up.
         </p>
         <p className="note">{gallery.data_note}</p>
       </section>
@@ -193,7 +207,7 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
             key={brief.id}
             type="button"
             role="tab"
-            aria-pressed={brief.id === activeId && !live}
+            aria-pressed={brief.id === activeId && !live && !waiting}
             onClick={() => brief.id && selectSample(brief.id)}
           >
             <strong>{brief.title}</strong>
@@ -204,11 +218,25 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
 
       <div className="layout">
         <article className="card">
-          {live ? <div className="pill">Live brief · {live.focus || "query"}</div> : <div className="pill">Sample · database tools</div>}
+          {waiting ? (
+            <>
+              <div className="pill">Your question</div>
+              <h2>{asked}</h2>
+              <p>{status}</p>
+            </>
+          ) : (
+            <>
+          {live ? <div className="pill">Live brief · {live.focus || "query"}</div> : <div className="pill">Corridor · database tools</div>}
           <h2>Summary</h2>
           <p>{shown.summary}</p>
           <h2>Key regions and sectors</h2>
           <p>{shown.key_regions_sectors || "Not provided."}</p>
+          {shown.macro ? (
+            <>
+              <h2>Wider accounts</h2>
+              <p>{shown.macro}</p>
+            </>
+          ) : null}
           <h2>So what</h2>
           <p>{shown.so_what || "Not provided."}</p>
           <h2>What&apos;s next</h2>
@@ -228,19 +256,17 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
               </ul>
             </details>
           ) : null}
+            </>
+          )}
         </article>
 
         <aside className="card charts">
           <h3>Latest levels</h3>
-          <p className="caption">
-            {live
-              ? "These bars are the seeded panel, not sentences from the model."
-              : "Largest latest value in this focus. Computed in SQL."}
-          </p>
-          <Bars rows={charts.top_flows || []} />
+          <p className="caption">{gallery.data_note}</p>
+          <Bars rows={charts.top_flows || []} empty={gallery.data_note} />
           <div className="chart-block">
             <h3>Latest year-over-year</h3>
-            <Bars rows={charts.yoy || []} signed />
+            <Bars rows={charts.yoy || []} signed empty={gallery.data_note} />
           </div>
         </aside>
       </div>

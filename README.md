@@ -2,32 +2,116 @@
 
 **Public trade briefs** from a tool-grounded analyst agent.
 
-Open the site and three sample briefs are already there: BRICS minerals and energy, US–China electronics, and Vietnam/Mexico supply into the United States. The bars are SQL aggregates from the same seeded panel as the text. A live box can ask the model a short focus; repeated questions come from cache, and new generations are limited to five an hour. If the model is still running or the API is down, the closest sample stays on screen.
+Three briefs are already computed: BRICS minerals, US–China electronics, and Vietnam/Mexico supply into the United States. Each brief’s bars are SQL aggregates of the same rows as the text. Under **Wider accounts**, the same countries show World Bank merchandise totals and the IMF current account. Those country totals stay off the commodity chart so a multi-trillion export figure does not flatten an HS chapter.
 
-The panel is an **illustrative synthetic set of 18 flows (2022–2024)**. It is not official UN Comtrade statistics.
+The panel is live data:
+
+- **UN Comtrade** annual merchandise for HS 26 (minerals), 27 (energy), 61–62 (textiles), 84 and 87 (machinery and vehicles), and 85 (electronics), 2022–2024
+- **World Bank** merchandise exports and imports, current US dollars
+- **IMF** World Economic Outlook current account, in dollars and as a percent of GDP
+
+Refresh all three with `python scripts/export_gallery.py --live`. The 18-row synthetic seed remains only for offline tests. The public Comtrade preview does not return the India reporter, so that energy corridor is omitted rather than filled with the old sample.
 
 **Live site:** [https://asan-macro.vercel.app](https://asan-macro.vercel.app)
 
-The samples are on that URL with no API key. Live generation still needs the Python API from `render.yaml`: set `GEMINI_API_KEY` or `OPENAI_API_KEY` there, then set `NEXT_PUBLIC_AGENT_API_URL` on the Vercel project and redeploy `web/`. Until that API exists, the live box says generation is not connected and the sample briefs stay up.
+The briefs on that URL need no API key. A typed question calls the Python API. Until that API is deployed (`render.yaml`) and `NEXT_PUBLIC_AGENT_API_URL` is set on the Vercel project, the ask box says generation is not connected and leaves the closest corridor on screen. The deployed site picks up a new gallery when `web/` is pushed.
 
-## Run it locally
+## How to use the agent
+
+### On the website
+
+1. Open the site and pick a corridor: **BRICS**, **US–China electronics**, or **Vietnam and Mexico**.
+2. Read Summary, Key regions and sectors, So what, and What’s next. The bars beside the text are the same HS rows.
+3. Read **Wider accounts** for World Bank goods totals and the IMF current account for those countries.
+4. Ask a short trade question in the box (200 characters or fewer). Examples: `BRICS minerals and energy`, `US-China electronics`, `Vietnam textiles`.
+5. The question stays on screen while the service checks the cache and, on a miss, asks the model. The bars that come back use the same region and sector filter as the tools.
+6. A repeated question is free if it is already cached. A new generation is limited to five an hour per IP. Instruction overrides are refused before any model call. The site does not accept a file or URL upload.
+
+If generation is unavailable, the page says so and keeps the closest corridor.
+
+### On your machine
+
+The CLI is the agent. One command reads the local database, calls the tools, asks the model, and writes a four-section brief.
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env   # one LLM backend, only needed for live generation
-python scripts/export_gallery.py
-cd web && npm install && npm run dev
+cp .env.example .env
 ```
 
-In another terminal, the live API:
+Put **one** model in `.env`, then run a focus:
+
+```bash
+# Local, no API key
+# USE_LOCAL_LLM=1
+# OLLAMA_MODEL=qwen2:7b
+ollama serve
+python main.py -q "US-China electronics" -o report.txt
+
+# or a cloud key instead of Ollama
+# GEMINI_API_KEY=...    or    OPENAI_API_KEY=...
+python main.py -q "BRICS minerals and energy" -o report.txt
+```
+
+Omit `-q` for a full-panel read. Other formats:
+
+```bash
+python main.py -q "Vietnam textiles" -o report.html -f html
+python main.py -q "Mexico manufacturing" -o report.json -f json
+python main.py -q "BRICS" -o report.txt -f linkedin
+```
+
+| Flag | What it does |
+|------|----------------|
+| `-q` / `--query` | Focus, treated as data. Examples: `BRICS`, `US-China electronics`. |
+| `-o` / `--output` | Report path. Default is a timestamped file in the project root. |
+| `-f` | `text` (default), `html`, `linkedin` (report plus a one-liner), or `json`. |
+| `-d` / `--data` | Load a CSV into the database before the brief. |
+| `--data-url` | Load a CSV from an https URL on the host allowlist. |
+| `--replace-data` | Clear `trade_flows` before that CSV load. |
+
+The first run creates `data/trade.db` and, if it is empty, fills it with the 18-row synthetic seed so the agent can run offline. That seed is not official trade data.
+
+To point the CLI and the API at the live HS corridors, then add World Bank and IMF rows to the same database:
+
+```bash
+python scripts/fetch_comtrade.py --corridors --replace
+python -c "from macro_data import fetch_macro, load_macro; print(load_macro(fetch_macro()))"
+python main.py -q "US-China electronics" -o report.txt
+```
+
+`--replace` clears commodity rows before the Comtrade insert. `load_macro` replaces only `macro_series`. The model then sees those accounts through `get_macro_context`.
+
+What you get back is a brief with four headings — Summary, Key regions and sectors, So what, What’s next — plus a disclaimer. `Refused:` means the query guard stopped the call. `Error:` means no model was configured, or the provider failed. A canned sample is written only when `ASAN_DEMO_FALLBACK=1`.
+
+### Local site plus the API
+
+The site reads the gallery at build time. The ask box calls the API only when `NEXT_PUBLIC_AGENT_API_URL` is set.
+
+```bash
+python scripts/export_gallery.py --live
+cd web && npm install && NEXT_PUBLIC_AGENT_API_URL=http://127.0.0.1:8000 npm run dev
+```
+
+In another terminal, from the repo root, with the same `.env` the CLI uses:
 
 ```bash
 uvicorn api.app:app --port 8000
 ```
 
-Point the site at it with `NEXT_PUBLIC_AGENT_API_URL=http://127.0.0.1:8000` before `npm run dev`. Without that variable the samples still render and the live box says generation is not connected.
+`export_gallery.py --live` writes `gallery/index.json` and `web/data/gallery.json` from a temporary database. It does not replace `data/trade.db`. Use the `fetch_comtrade.py` commands above when you want the CLI or API process itself to query the live rows.
 
-CLI, unchanged:
+Without `NEXT_PUBLIC_AGENT_API_URL`, `npm run dev` still shows the briefs and says generation is not connected.
+
+## Run it locally
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env   # one LLM backend, only needed for a generated brief
+python scripts/export_gallery.py --live
+cd web && npm install && npm run dev
+```
+
+CLI, after the database exists:
 
 ```bash
 python main.py -q "BRICS" -o report.txt
@@ -45,9 +129,9 @@ ASAN Macro is a trade analyst agent. The public site in `web/` shows precomputed
 |------------|----------|
 | **Trade sentiment reporting** | Generates a short narrative with thematic synthesis, key regions/sectors, implications (**so what**), and outlook (**what’s next**), wrapped in `REPORT_START` / `REPORT_END`. |
 | **Focus queries** | Optional `-q` (e.g. `BRICS`, `US-China electronics`) steers analysis; omit it for a full-database read. |
-| **Tool-grounded analysis** | The LLM is backed by nine tools over SQLite—not free-form guessing alone—so claims can be tied to stored flows and bulletins. |
+| **Tool-grounded analysis** | The LLM is backed by ten tools over SQLite—not free-form guessing alone—so claims can be tied to stored flows, macro series, and bulletins. |
 | **Multi-backend LLMs** | First available backend: **Ollama** → **Gemini** → **OpenAI**. OpenAI runs a multi-turn tool loop. Ollama and Gemini get a focus-specific tool pack, then write once. Gemini receives the system prompt. |
-| **Dynamic data ingest** | Load local CSV (`-d`), CSV from URL (`--data-url`), or UN Comtrade via `scripts/fetch_comtrade.py`. `--replace-data` clears seed rows before loading. |
+| **Dynamic data ingest** | `scripts/export_gallery.py --live` rebuilds the site from Comtrade, World Bank, and IMF. `scripts/fetch_comtrade.py --corridors --replace` loads those HS rows into `data/trade.db`. CSV (`-d`) and an allowlisted `--data-url` still work. |
 | **Multiple output formats** | `text` (default), `html`, `linkedin` (report + short one-liner file), or `json` (structured fields for dashboards/APIs). |
 | **Evaluation** | `evaluation/run_evaluation.py` runs multiple focus queries and scores section presence, length, and runtime. |
 | **Adversarial / safety probes** | `guard_query` refuses instruction-override text before any model call (unit tested). Inputs that pass the guard are not yet recorded against a live model. |
@@ -58,7 +142,7 @@ ASAN Macro is a trade analyst agent. The public site in `web/` shows precomputed
 
 | | Details |
 |--|---------|
-| **Inputs** | Seeded SQLite DB (`data/trade.db`: `trade_flows`, `rag_chunks`); optional CSV/URL/Comtrade; optional focus query; `.env` LLM config. |
+| **Inputs** | SQLite (`data/trade.db`: `trade_flows`, `macro_series`, `rag_chunks`); the gallery JSON the site imports; optional CSV/URL/Comtrade; optional focus query; `.env` LLM config. |
 | **CSV columns** | `year`, `reporter_region`, `partner_region`, `sector`, `flow_type`, `value_usd`. |
 | **Outputs** | Report file (+ console print). HTML is escaped for safer viewing; JSON exposes summary, bullets, so_what, whats_next. |
 
@@ -72,12 +156,13 @@ ASAN Macro is a trade analyst agent. The public site in `web/` shows precomputed
 | `get_yoy_growth` | Year-over-year growth via SQL window logic |
 | `get_top_flows` | Top-N flows by value |
 | `get_trade_trends` | First-year vs last-year deltas |
+| `get_macro_context` | World Bank merchandise totals and the IMF current account for one country, or the loaded set |
 | `rag_retrieve` | Keyword retrieval over stored trade bulletin chunks |
 
 ### Typical use
 
 ```bash
-# Full analysis on seeded (or previously ingested) data
+# Full analysis on whatever is already in data/trade.db
 python main.py -o report.txt
 
 # Focused brief + LinkedIn one-liner
@@ -100,13 +185,13 @@ flowchart TB
     subgraph Inputs
         U[User / Cron / GitHub Actions]
         Q["Focus query (-q)"]
-        D["CSV / URL / UN Comtrade"]
+        D["CSV / URL / Comtrade / World Bank / IMF"]
     end
 
     subgraph Orchestration["main.py"]
         E[Load .env + config]
         DB[ensure_db → data/trade.db]
-        IN[Optional ingest into trade_flows]
+        IN[Optional ingest into trade_flows and macro_series]
         A[run_agent]
         OUT[Format: text / HTML / LinkedIn / JSON]
     end
@@ -122,7 +207,8 @@ flowchart TB
         T1[list_regions / list_sectors]
         T2[query_trade_flows]
         T3[get_yoy_growth / get_top_flows / get_trade_trends]
-        T4[rag_retrieve over rag_chunks]
+        T4[get_macro_context]
+        T5[rag_retrieve over rag_chunks]
     end
 
     U --> E --> DB --> IN --> A
@@ -141,8 +227,8 @@ flowchart TB
 |------|-----------|--------------|
 | **1. Configure** | `config.py`, `.env` | Load API keys / Ollama settings. Backend priority: **Ollama → Gemini → OpenAI**. |
 | **2. Persist** | `database.py` | Create/seed `data/trade.db` (`trade_flows`, `rag_chunks`) if missing. |
-| **3. Ingest (optional)** | `data_ingestion.py`, `scripts/fetch_comtrade.py` | Load CSV, CSV URL, or UN Comtrade into the DB before analysis. |
-| **4. Ground** | `tools.py` | Nine tools query structured flows and keyword RAG so the model reasons over **data**, not only priors. |
+| **3. Ingest (optional)** | `scripts/fetch_comtrade.py`, `macro_data.py`, `data_ingestion.py` | Load Comtrade HS corridors, World Bank and IMF series, or a CSV before analysis. |
+| **4. Ground** | `tools.py` | Ten tools query structured flows, macro series, and keyword RAG so the model reasons over **data**, not only priors. |
 | **5. Reason** | `agent.py` | LLM synthesizes themes (e.g. BRICS, US–China, South–South). OpenAI uses a true tool-calling loop; Ollama/Gemini use deterministic pre-tooling + one synthesis call for portability. |
 | **6. Deliver** | `main.py` | Extract `REPORT_START`…`REPORT_END` and write text / HTML / LinkedIn one-liner / structured JSON. |
 | **7. Assure** | `evaluation/` | Completeness metrics across focus queries; adversarial cases for prompt leak, jailbreak-style, off-topic, and gibberish inputs. |
@@ -169,8 +255,7 @@ For diagrams and deeper run notes, see [LOGIC_FLOW_DIAGRAM.md](LOGIC_FLOW_DIAGRA
 ```bash
 pip install -r requirements.txt
 cp .env.example .env   # configure one LLM backend
-python main.py -q "BRICS" -o report.txt
-# or: ./run.sh -q "BRICS" -o report.txt
+python main.py -q "BRICS minerals and energy" -o report.txt
 ```
 
 ### LLM backends (pick one)
@@ -188,7 +273,8 @@ python main.py -q "BRICS" -o report.txt
 python main.py -q "US-China electronics" -d sample_trade.csv -o report.txt
 python main.py -q "BRICS" -o report.html -f html
 python main.py -o report.json -f json
-python scripts/fetch_comtrade.py && python main.py -q "BRICS" -o report.txt
+python scripts/fetch_comtrade.py --corridors --replace && python main.py -q "BRICS" -o report.txt
+python scripts/export_gallery.py --live
 python evaluation/run_evaluation.py
 python evaluation/adversarial_test.py
 ```
@@ -209,21 +295,22 @@ python evaluation/adversarial_test.py
 ASAN_AI_Project/
 ├── main.py                 # CLI entry: ingest → agent → format output
 ├── agent.py                # LLM orchestration (Ollama / Gemini / OpenAI)
-├── tools.py                # Nine analyst tools over SQLite + RAG
+├── tools.py                # Analyst tools over SQLite, macro series, and RAG
 ├── report_contract.py      # Brief schema, query guard, disclaimer
 ├── focus.py                # Focus-specific tool pack
-├── gallery_build.py        # SQL charts + three sample briefs
+├── macro_data.py           # World Bank and IMF fetch, store, and sentences
+├── gallery_build.py        # SQL charts + three briefs + wider accounts
 ├── api/app.py              # Cached, rate-limited live API
 ├── web/                    # Next.js public site
-├── database.py             # Schema + seed data
+├── database.py             # Schema + offline seed
 ├── data_ingestion.py       # CSV / allowlisted https ingest
 ├── config.py               # Env, paths, model helpers
 ├── evaluation/
 │   ├── run_evaluation.py   # Completeness / runtime harness
 │   └── adversarial_test.py # Misuse / injection-style probes
 ├── scripts/
-│   ├── fetch_comtrade.py   # UN Comtrade → DB
-│   ├── export_gallery.py   # Rewrite gallery JSON from the seed
+│   ├── fetch_comtrade.py   # UN Comtrade HS corridors → DB
+│   ├── export_gallery.py   # --live rebuilds the site JSON; default is the seed
 │   └── run_scheduled.sh    # Ingest + report for cron
 ├── .github/workflows/
 │   ├── ci.yml
@@ -231,7 +318,7 @@ ASAN_AI_Project/
 └── data/                   # trade.db created on first run
 ```
 
-**Agent tools:** `list_regions`, `list_sectors`, `query_trade_flows`, `get_region_summary`, `get_sector_summary`, `rag_retrieve`, `get_yoy_growth`, `get_top_flows`, `get_trade_trends`.
+**Agent tools:** `list_regions`, `list_sectors`, `query_trade_flows`, `get_region_summary`, `get_sector_summary`, `get_yoy_growth`, `get_top_flows`, `get_trade_trends`, `get_macro_context`, `rag_retrieve`.
 
 ---
 
@@ -251,7 +338,9 @@ Details: [EVALUATION_AND_SAFETY.md](EVALUATION_AND_SAFETY.md).
 
 ## Live data & scheduling
 
-- **UN Comtrade:** [DOC_COMTRADE.md](DOC_COMTRADE.md) · `python scripts/fetch_comtrade.py`
+- **UN Comtrade corridors:** [DOC_COMTRADE.md](DOC_COMTRADE.md) · `python scripts/fetch_comtrade.py --corridors --replace`
+- **World Bank and IMF:** `python -c "from macro_data import fetch_macro, load_macro; print(load_macro(fetch_macro()))"`
+- **Site gallery:** `python scripts/export_gallery.py --live`
 - **Cron / Actions:** [SCHEDULING.md](SCHEDULING.md) · `scripts/run_scheduled.sh` · weekly workflow in `.github/workflows/`
 
 ---
@@ -276,7 +365,7 @@ I completed this project alone: architecture, agent orchestration, tools/DB/RAG,
 
 ## What shipped for the public demo
 
-- Next.js site (`web/`) with three sample briefs, SQL charts, and a tool trace.
+- Next.js site (`web/`) with three corridor briefs, SQL charts, Wider accounts, and a tool trace.
 - FastAPI service (`api/app.py`): cache, background jobs, five new generations per IP per hour. No public file or URL upload.
 - Pydantic brief contract, focus-specific tool pack, Gemini system prompt, disclaimer on every brief.
 - Query guard and an https host allowlist for operator `--data-url`.

@@ -182,6 +182,105 @@ def test_rate_limiter_window():
     assert limiter.allow("1.2.3.4")
 
 
+def test_comtrade_record_uses_focus_names():
+    import importlib.util
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "fetch_comtrade.py"
+    spec = importlib.util.spec_from_file_location("fetch_comtrade", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    usa = module._map_comtrade_record(
+        {
+            "refYear": 2023,
+            "reporterDesc": "China",
+            "partnerDesc": "United States of America",
+            "cmdCode": "85",
+            "flowCode": "X",
+            "primaryValue": 1000,
+            "_sector": "Electronics",
+            "_flow": "export",
+        }
+    )
+    assert usa[1:] == ("China", "USA", "Electronics", "export", 1000.0)
+
+    vietnam = module._map_comtrade_record(
+        {
+            "period": 2024,
+            "reporterCode": "704",
+            "partnerDesc": "Viet Nam",
+            "cmdCode": 61.0,
+            "flowDesc": "Export",
+            "primaryValue": 50,
+        }
+    )
+    assert vietnam[1] == "Vietnam"
+    assert vietnam[2] == "Vietnam"
+    assert vietnam[3] == "Textiles"
+    assert vietnam[4] == "export"
+
+    collapsed = module.collapse_rows(
+        [
+            (2024, "Vietnam", "USA", "Textiles", "export", 10),
+            (2024, "Vietnam", "USA", "Textiles", "export", 15),
+        ]
+    )
+    assert collapsed == [(2024, "Vietnam", "USA", "Textiles", "export", 25.0)]
+
+
+def test_focus_charts_follow_the_query(tmp_path, monkeypatch):
+    monkeypatch.setenv("ASAN_DB_PATH", str(tmp_path / "trade.db"))
+    from database import ensure_db
+    from gallery_build import charts_for_focus
+
+    ensure_db()
+    charts = charts_for_focus("India Russia energy")
+    assert any("India" in row["label"] and "Russia" in row["label"] for row in charts["top_flows"])
+    assert all("China" not in row["label"] or "India" in row["label"] for row in charts["top_flows"])
+
+
+def test_macro_parsers_and_render(tmp_path, monkeypatch):
+    monkeypatch.setenv("ASAN_DB_PATH", str(tmp_path / "trade.db"))
+    from macro_data import load_macro, parse_imf, parse_world_bank, render_macro
+
+    world_bank = parse_world_bank(
+        [
+            {"total": 1},
+            [
+                {
+                    "indicator": {"id": "TX.VAL.MRCH.CD.WT"},
+                    "countryiso3code": "CHN",
+                    "date": "2024",
+                    "value": 3575795000000,
+                },
+                {"indicator": {"id": "TX.VAL.MRCH.CD.WT"}, "countryiso3code": "CHN", "date": "2023", "value": None},
+            ],
+        ],
+        "merchandise_exports",
+    )
+    assert world_bank == [
+        {
+            "source": "world_bank",
+            "indicator": "merchandise_exports",
+            "country": "China",
+            "year": 2024,
+            "value": 3575795000000,
+            "unit": "usd",
+        }
+    ]
+    imf = parse_imf(
+        {"values": {"BCA": {"CHN": {"2022": 100, "2024": 458.51, "2025": 999}, "USA": {"2024": -1198.62}}}},
+        "BCA",
+    )
+    assert any(row["country"] == "China" and row["year"] == 2024 and row["value"] == 458.51 for row in imf)
+    assert all(row["year"] != 2025 for row in imf)
+    load_macro(world_bank + imf)
+    text = render_macro(["China"])
+    assert "World Bank merchandise exports: China $3.6T (2024)." in text
+    assert "IMF WEO current account: China $458.5B (2024)." in text
+    assert "USA" not in text
+
+
 def test_gallery_matches_seed(tmp_path, monkeypatch):
     monkeypatch.setenv("ASAN_DB_PATH", str(tmp_path / "trade.db"))
     from gallery_build import build_gallery
@@ -207,7 +306,14 @@ def test_committed_gallery_schema():
     assert len(gallery["briefs"]) == 3
     assert gallery["charts"]["top_flows"]
     assert gallery["charts"]["yoy"]
-    assert "synthetic" in gallery["data_note"].lower()
+    assert "un comtrade" in gallery["data_note"].lower()
+    assert "$9.2B" not in json.dumps(gallery)
+    brics = next(item for item in gallery["briefs"] if item["id"] == "brics")
+    assert "Brazil" in brics["summary"] and "China" in brics["summary"]
+    electronics = next(item for item in gallery["briefs"] if item["id"] == "us-china-electronics")
+    assert "electronics" in electronics["summary"].lower()
+    near = next(item for item in gallery["briefs"] if item["id"] == "nearshoring")
+    assert "Mexico" in near["summary"] or "Vietnam" in near["summary"]
     for brief in gallery["briefs"]:
         for key in ("summary", "key_regions_sectors", "so_what", "whats_next", "disclaimer", "tool_trace"):
             assert brief[key]

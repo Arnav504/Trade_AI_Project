@@ -60,12 +60,14 @@ type Gallery = {
   how_it_works: { tools: string[]; backends: string };
 };
 
-function closestId(query: string, briefs: Brief[], fallback: string) {
-  const q = query.toLowerCase();
-  if (/brics|mineral|energy|russia/.test(q)) return "brics";
-  if (/vietnam|mexico|textile|manufactur|nearshor/.test(q)) return "nearshoring";
-  if (/electron|china|decoupl/.test(q)) return "us-china-electronics";
-  return briefs.some((brief) => brief.id === fallback) ? fallback : briefs[0]?.id || fallback;
+const EXAMPLES = [
+  "EU energy with India since 2019",
+  "Japan–India trade in 2025",
+  "US–China electronics",
+];
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function Bars({ rows, signed, empty }: { rows: ChartRow[]; signed?: boolean; empty: string }) {
@@ -124,125 +126,182 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
   const [asked, setAsked] = useState("");
   const [status, setStatus] = useState("");
   const [pending, setPending] = useState(false);
+  const [trouble, setTrouble] = useState("");
   const ticket = useRef(0);
 
   const selected = briefs.find((brief) => brief.id === activeId) ?? briefs[0];
   const waiting = Boolean(pending && asked && !live);
+  const held = Boolean(asked && trouble && !live);
   const shown = live ?? selected;
+  const chartEmpty = waiting || held ? "Waiting for official rows for this question." : gallery.data_note;
   const charts = live?.charts
     ? live.charts
-    : waiting
+    : waiting || held
       ? { top_flows: [], yoy: [], series: [] }
       : selected.charts ?? gallery.charts;
   const base = apiBase.replace(/\/$/, "");
-
-  function revealCorridor(query: string, message: string) {
-    setLive(null);
-    setAsked("");
-    setPending(false);
-    setActiveId(closestId(query, briefs, activeId));
-    setStatus(message);
-  }
 
   function selectSample(id: string) {
     ticket.current += 1;
     setPending(false);
     setLive(null);
     setAsked("");
+    setTrouble("");
     setStatus("");
     setActiveId(id);
   }
 
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    const query = draft.trim();
-    if (!query) return;
+  async function postAnalyze(query: string) {
+    return fetch(`${base}/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+  }
+
+  function holdQuestion(query: string, message: string) {
+    setLive(null);
+    setAsked(query);
+    setTrouble(message);
+    setStatus(message);
+    setPending(false);
+  }
+
+  async function runQuery(query: string) {
     const mine = ++ticket.current;
     setLive(null);
+    setTrouble("");
     setAsked(query);
     setPending(true);
     if (!base) {
-      revealCorridor(query, "Live generation is not connected on this deploy. Showing the closest corridor for this question.");
+      holdQuestion(query, "Live generation is not connected on this deploy.");
       return;
     }
     setStatus("Checking the cache…");
     try {
-      const response = await fetch(`${base}/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
-      });
+      let response: Response;
+      try {
+        response = await postAnalyze(query);
+      } catch {
+        if (mine !== ticket.current) return;
+        setStatus("Waking the data service…");
+        await sleep(4000);
+        if (mine !== ticket.current) return;
+        response = await postAnalyze(query);
+      }
       const data = await response.json().catch(() => ({}));
       if (mine !== ticket.current) return;
       if (response.status === 429 || !response.ok) {
-        const detail = typeof data.detail === "string" ? data.detail : "Showing the closest corridor for this question.";
-        revealCorridor(query, detail);
+        const detail = typeof data.detail === "string" ? data.detail : "The analysis service could not start this question.";
+        holdQuestion(query, detail);
         return;
       }
       if (data.status === "complete" && data.brief) {
         setAsked("");
+        setTrouble("");
         setLive(data.brief);
         setStatus(data.cached ? "Cached brief. The bars use the same rows as this answer." : "Live brief. The bars use the same rows as this answer.");
         setPending(false);
         return;
       }
-      setStatus("Generating an answer to your question.");
+      setStatus(typeof data.stage === "string" && data.stage ? data.stage : "Fetching UN Comtrade…");
       const jobId = data.job_id as string;
       for (let attempt = 0; attempt < 40; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        await sleep(3000);
         if (mine !== ticket.current) return;
-        const poll = await fetch(`${base}/analyze/${jobId}`);
-        if (mine !== ticket.current) return;
-        if (!poll.ok) continue;
-        let job: { status?: string; brief?: Brief; error?: string };
+        let job: { status?: string; brief?: Brief; error?: string; stage?: string } | null = null;
         try {
-          job = await poll.json();
+          const poll = await fetch(`${base}/analyze/${jobId}`);
+          if (mine !== ticket.current) return;
+          if (!poll.ok) continue;
+          const parsed = await poll.json();
+          if (!parsed || typeof parsed !== "object") continue;
+          job = parsed;
         } catch {
-          if (mine !== ticket.current) return;
-          revealCorridor(query, "The analysis service returned an unreadable status. Showing the closest corridor for this question.");
-          return;
+          continue;
         }
-        if (!job || typeof job !== "object") {
-          if (mine !== ticket.current) return;
-          revealCorridor(query, "The analysis service returned an unreadable status. Showing the closest corridor for this question.");
-          return;
-        }
+        if (mine !== ticket.current) return;
+        if (!job) continue;
+        if (job.stage) setStatus(job.stage);
         if (job.status === "complete" && job.brief) {
           setAsked("");
+          setTrouble("");
           setLive(job.brief);
           setStatus("Live brief. The bars use the same rows as this answer.");
           setPending(false);
           return;
         }
         if (job.status === "error") {
-          revealCorridor(query, job.error || "Generation failed. Showing the closest corridor for this question.");
+          holdQuestion(query, job.error || "Generation failed.");
           return;
         }
       }
-      setAsked("");
-      setStatus("Still running. Ask again in a minute to read the cached result.");
-      setPending(false);
+      holdQuestion(query, "Still running. Ask again in a minute to read the cached result.");
     } catch {
       if (mine !== ticket.current) return;
-      revealCorridor(query, "The analysis service is unreachable. Showing the closest corridor for this question.");
+      holdQuestion(query, "The analysis service is unreachable.");
     }
+  }
+
+  function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    const query = draft.trim();
+    if (!query || pending) return;
+    void runQuery(query);
   }
 
   return (
     <main className="wrap">
       <header className="top">
         <div className="mark">ASAN <span>Macro</span></div>
-        <a href="https://github.com/Arnav504/ASAN_AI_Project">Source</a>
+        <a href="https://github.com/Arnav504/Trade_AI_Project">Source</a>
       </header>
 
       <section className="hero">
         <p className="kicker">Trade sentiment briefs</p>
         <h1>What the panel says, with the numbers attached.</h1>
         <p className="lede">
-          Three briefs are already computed from the trade rows. A question stays on screen until an answer
-          arrives, and the bars use those same rows. If generation is unavailable, the closest corridor stays up.
+          Ask a question first. The answer stays on this card, and the bars use those same rows.
+          Three sample corridors stay available underneath.
         </p>
         <p className="note">{gallery.data_note}</p>
+      </section>
+
+      <section className="card ask">
+        <h2>Ask a focus</h2>
+        <p className="caption">
+          Short trade questions only. The service refuses instruction overrides and does not accept file or URL uploads.
+          New generations are limited to five an hour; a repeated question is free if it is already cached.
+        </p>
+        <form onSubmit={onSubmit}>
+          <label className="visually-hidden" htmlFor="focus">Focus query</label>
+          <input
+            id="focus"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            maxLength={200}
+            placeholder="How has EU energy trade with India changed since 2019?"
+          />
+          <button type="submit" disabled={pending}>
+            {pending ? "Working" : "Generate"}
+          </button>
+        </form>
+        <div className="examples">
+          {EXAMPLES.map((example) => (
+            <button
+              key={example}
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                setDraft(example);
+                void runQuery(example);
+              }}
+            >
+              {example}
+            </button>
+          ))}
+        </div>
+        <p className="status" role="status" aria-live="polite">{status}</p>
       </section>
 
       <div className="switcher" role="tablist" aria-label="Sample briefs">
@@ -251,7 +310,7 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
             key={brief.id}
             type="button"
             role="tab"
-            aria-pressed={brief.id === activeId && !live && !waiting}
+            aria-pressed={brief.id === activeId && !live && !waiting && !held}
             onClick={() => brief.id && selectSample(brief.id)}
           >
             <strong>{brief.title}</strong>
@@ -262,9 +321,9 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
 
       <div className="layout">
         <article className="card">
-          {waiting ? (
+          {waiting || held ? (
             <>
-              <div className="pill">Your question</div>
+              <div className="pill">{held ? "Could not finish" : "Your question"}</div>
               <h2>{asked}</h2>
               <p>{status}</p>
             </>
@@ -319,37 +378,15 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
 
         <aside className="card charts">
           <h3>Latest levels</h3>
-          <p className="caption">{gallery.data_note}</p>
-          <Bars rows={charts.top_flows || []} empty={gallery.data_note} />
+          <p className="caption">{waiting || held ? status : gallery.data_note}</p>
+          <Bars rows={charts.top_flows || []} empty={chartEmpty} />
           <YearChart series={charts.series || []} />
           <div className="chart-block">
             <h3>Latest year-over-year</h3>
-            <Bars rows={charts.yoy || []} signed empty={gallery.data_note} />
+            <Bars rows={charts.yoy || []} signed empty={chartEmpty} />
           </div>
         </aside>
       </div>
-
-      <section className="card ask">
-        <h2>Ask a focus</h2>
-        <p className="caption">
-          Short trade questions only. The service refuses instruction overrides and does not accept file or URL uploads.
-          New generations are limited to five an hour; a repeated question is free if it is already cached.
-        </p>
-        <form onSubmit={onSubmit}>
-          <label className="visually-hidden" htmlFor="focus">Focus query</label>
-          <input
-            id="focus"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            maxLength={200}
-            placeholder="How has EU energy trade with India changed since 2019?"
-          />
-          <button type="submit" disabled={pending}>
-            {pending ? "Working" : "Generate"}
-          </button>
-        </form>
-        <p className="status" role="status" aria-live="polite">{status}</p>
-      </section>
 
       <section className="method">
         <div className="card">

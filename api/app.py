@@ -4,6 +4,7 @@ import os
 import threading
 import uuid
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -49,6 +50,7 @@ app.add_middleware(
 _jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
 _worker = threading.Semaphore(2)
+_job_id: ContextVar[str | None] = ContextVar("asan_job_id", default=None)
 
 
 class AnalyzeIn(BaseModel):
@@ -113,6 +115,16 @@ def _attach_figures(payload: dict, query: str, plan: dict, text: str) -> dict:
     return payload
 
 
+def _set_stage(stage: str) -> None:
+    job_id = _job_id.get()
+    if not job_id:
+        return
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if job is not None:
+            job["stage"] = stage
+
+
 def produce_brief(query: str) -> dict:
     try:
         cleaned = guard_query(query)
@@ -132,11 +144,14 @@ def produce_brief(query: str) -> dict:
         query = cleaned
 
     plan = plan_focus(query)
-    ensure_macro(plan.get("regions") or [], plan.get("year_from"), plan.get("year_to"))
+    _set_stage("Fetching UN Comtrade…")
     info = ensure_question_slice(plan, query)
+    _set_stage("Loading World Bank and IMF…")
+    ensure_macro(plan.get("regions") or [], plan.get("year_from"), plan.get("year_to"))
     if info["status"] == "empty":
         return _empty_payload(query, plan)
 
+    _set_stage("Writing the brief…")
     text = run_agent(user_query=query)
     brief = last_brief()
     if brief is None:
@@ -148,12 +163,9 @@ def produce_brief(query: str) -> dict:
 
 
 def _failed(payload: dict) -> bool:
+    """A refusal stays an error. A summary rewritten from tool rows is a finished brief."""
     summary = (payload.get("summary") or "").strip()
-    report = (payload.get("full_report") or "").strip()
-    for text in (summary, report):
-        if text.startswith("Error:") or text.startswith("Refused:") or text.startswith("Ollama error"):
-            return True
-    return False
+    return summary.startswith(("Error:", "Refused:", "Ollama error"))
 
 
 def _execute(job_id: str) -> None:
@@ -163,6 +175,7 @@ def _execute(job_id: str) -> None:
             return
         job["status"] = "running"
         query = job["query"]
+    token = _job_id.set(job_id)
     with _worker:
         try:
             payload = produce_brief(query)
@@ -178,10 +191,14 @@ def _execute(job_id: str) -> None:
             with _jobs_lock:
                 _jobs[job_id]["status"] = "error"
                 _jobs[job_id]["error"] = f"Error: {exc}"
+        finally:
+            _job_id.reset(token)
 
 
 def _public_job(job: dict) -> dict:
     body = {"status": job["status"], "job_id": job["id"], "cached": False}
+    if job.get("stage"):
+        body["stage"] = job["stage"]
     if job.get("brief") is not None:
         body["brief"] = job["brief"]
     if job.get("error"):
@@ -222,7 +239,14 @@ def analyze(body: AnalyzeIn, request: Request):
 
     job_id = uuid.uuid4().hex
     with _jobs_lock:
-        _jobs[job_id] = {"id": job_id, "query": query, "status": "queued", "brief": None, "error": None}
+        _jobs[job_id] = {
+            "id": job_id,
+            "query": query,
+            "status": "queued",
+            "stage": "Queued",
+            "brief": None,
+            "error": None,
+        }
 
     if os.environ.get("ASAN_ANALYZE_SYNC", "").strip() == "1":
         _execute(job_id)

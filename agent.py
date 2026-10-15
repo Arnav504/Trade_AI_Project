@@ -223,6 +223,28 @@ def _sample_report_after_error(error_msg: str) -> str:
     return f"Error: {error_msg}"
 
 
+def _transient_openai(exc: Exception) -> bool:
+    """One retry for a timeout, a rate limit, or a server error. A bad key is final."""
+    status = getattr(exc, "status_code", None)
+    if status in (408, 409, 429) or (isinstance(status, int) and status >= 500):
+        return True
+    name = type(exc).__name__
+    if name in ("APITimeoutError", "APIConnectionError", "RateLimitError", "InternalServerError"):
+        return True
+    text = str(exc).lower()
+    return "timeout" in text or "rate limit" in text
+
+
+def _openai_completion(client, retried: list, **kwargs):
+    try:
+        return client.chat.completions.create(**kwargs)
+    except Exception as exc:
+        if retried[0] or not _transient_openai(exc):
+            raise
+        retried[0] = True
+        return client.chat.completions.create(**kwargs)
+
+
 def _run_agent_openai(client, user_query: str | None, max_rounds: int) -> str:
     openai_tools = [
         {"type": "function", "function": {"name": "list_regions", "description": "List all regions in the trade database."}},
@@ -246,8 +268,11 @@ def _run_agent_openai(client, user_query: str | None, max_rounds: int) -> str:
         {"role": "user", "content": prompt},
     ]
 
+    retried = [False]
     for _ in range(max_rounds):
-        response = client.chat.completions.create(
+        response = _openai_completion(
+            client,
+            retried,
             model=get_openai_model(),
             messages=messages,
             tools=openai_tools,

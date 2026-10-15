@@ -348,69 +348,70 @@ def gather_context(user_query: str | None) -> str:
         add("get_top_flows", T.get_top_flows, n=10, year_from=year_from, year_to=year_to)
         add("get_trade_trends", T.get_trade_trends, limit=10)
         add("get_macro_context", T.get_macro_context)
-    else:
-        for region in regions:
-            add("get_region_summary", T.get_region_summary, region=region)
-            add("get_trade_trends", T.get_trade_trends, region=region, limit=8)
-            add("get_macro_context", T.get_macro_context, region=region)
-        for sector in sectors:
-            add("get_sector_summary", T.get_sector_summary, sector=sector)
-            add("get_yoy_growth", T.get_yoy_growth, sector=sector, year_from=year_from, year_to=year_to)
-        if regions and not sectors:
-            add("get_yoy_growth", T.get_yoy_growth, region=regions[0], year_from=year_from, year_to=year_to)
-        specs = trade_pairs(plan, user_query)
-        if specs:
-            for spec in specs[:4]:
-                add(
-                    "query_trade_flows",
-                    T.query_trade_flows,
-                    reporter=spec["reporter"],
-                    partner=spec["partner"],
-                    sector=spec["sector"],
-                    year_from=year_from,
-                    year_to=year_to,
-                    limit=20,
-                )
-        elif len(regions) >= 2 and sectors:
+        return "\n\n".join(parts)
+
+    for region in regions:
+        add("get_region_summary", T.get_region_summary, region=region)
+        add("get_trade_trends", T.get_trade_trends, region=region, limit=8)
+        add("get_macro_context", T.get_macro_context, region=region)
+    for sector in sectors:
+        add("get_sector_summary", T.get_sector_summary, sector=sector)
+        add("get_yoy_growth", T.get_yoy_growth, sector=sector, year_from=year_from, year_to=year_to)
+    if regions and not sectors:
+        add("get_yoy_growth", T.get_yoy_growth, region=regions[0], year_from=year_from, year_to=year_to)
+    specs = trade_pairs(plan, user_query)
+    if specs:
+        for spec in specs[:4]:
             add(
                 "query_trade_flows",
                 T.query_trade_flows,
-                reporter=regions[0],
-                partner=regions[1],
-                sector=sectors[0],
+                reporter=spec["reporter"],
+                partner=spec["partner"],
+                sector=spec["sector"],
                 year_from=year_from,
                 year_to=year_to,
                 limit=20,
             )
-            add(
-                "query_trade_flows",
-                T.query_trade_flows,
-                reporter=regions[1],
-                partner=regions[0],
-                sector=sectors[0],
-                year_from=year_from,
-                year_to=year_to,
-                limit=20,
-            )
-        elif len(regions) == 1 and sectors:
-            add(
-                "query_trade_flows",
-                T.query_trade_flows,
-                reporter=regions[0],
-                sector=sectors[0],
-                year_from=year_from,
-                year_to=year_to,
-                limit=20,
-            )
-        elif sectors:
-            add(
-                "query_trade_flows",
-                T.query_trade_flows,
-                sector=sectors[0],
-                year_from=year_from,
-                year_to=year_to,
-                limit=20,
-            )
+    elif len(regions) >= 2 and sectors:
+        add(
+            "query_trade_flows",
+            T.query_trade_flows,
+            reporter=regions[0],
+            partner=regions[1],
+            sector=sectors[0],
+            year_from=year_from,
+            year_to=year_to,
+            limit=20,
+        )
+        add(
+            "query_trade_flows",
+            T.query_trade_flows,
+            reporter=regions[1],
+            partner=regions[0],
+            sector=sectors[0],
+            year_from=year_from,
+            year_to=year_to,
+            limit=20,
+        )
+    elif len(regions) == 1 and sectors:
+        add(
+            "query_trade_flows",
+            T.query_trade_flows,
+            reporter=regions[0],
+            sector=sectors[0],
+            year_from=year_from,
+            year_to=year_to,
+            limit=20,
+        )
+    elif sectors:
+        add(
+            "query_trade_flows",
+            T.query_trade_flows,
+            sector=sectors[0],
+            year_from=year_from,
+            year_to=year_to,
+            limit=20,
+        )
     from analytics import describe_spans
 
     spans = spans_for_plan(plan, user_query)

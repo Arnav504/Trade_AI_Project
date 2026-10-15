@@ -104,16 +104,21 @@ def _attach_figures(payload: dict, query: str, plan: dict, text: str) -> dict:
 
 def produce_brief(query: str) -> dict:
     try:
-        guard_query(query)
-    except QueryRejected:
-        text = run_agent(user_query=query)
-        brief = last_brief()
-        payload = {"summary": text, "focus": query, "disclaimer": DISCLAIMER, "source": "llm"} if brief is None else brief.model_dump()
-        payload["full_report"] = text
-        payload["charts"] = {"top_flows": [], "yoy": [], "series": []}
-        payload["macro"] = ""
-        payload["web_notes"] = {"summary": "", "links": []}
-        return payload
+        cleaned = guard_query(query)
+    except QueryRejected as exc:
+        text = f"Refused: {exc}"
+        return {
+            "summary": text,
+            "focus": query,
+            "disclaimer": DISCLAIMER,
+            "source": "llm",
+            "full_report": text,
+            "charts": {"top_flows": [], "yoy": [], "series": []},
+            "macro": "",
+            "web_notes": {"summary": "", "links": []},
+        }
+    if cleaned:
+        query = cleaned
 
     plan = plan_focus(query)
     info = ensure_question_slice(plan, query)

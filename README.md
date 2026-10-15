@@ -2,7 +2,7 @@
 
 **Public trade briefs** from a tool-grounded analyst agent.
 
-Three briefs are already computed: BRICS minerals, US–China electronics, and Vietnam/Mexico supply into the United States. Each brief’s bars are SQL aggregates of the same rows as the text. Under **Wider accounts**, the same countries show World Bank merchandise totals and the IMF current account. Those country totals stay off the commodity chart so a multi-trillion export figure does not flatten an HS chapter.
+Three briefs are already computed: BRICS minerals, US–China electronics, and Vietnam/Mexico supply into the United States. You can also type a plain question about countries, a bloc, a sector, and a year window. Each brief’s bars are SQL aggregates of the same rows as the text. **Across the years** keeps every year of that slice. Under **Wider accounts**, the same countries show World Bank merchandise totals and the IMF current account. Those country totals stay off the commodity chart so a multi-trillion export figure does not flatten an HS chapter.
 
 The panel is live data:
 
@@ -23,11 +23,25 @@ The briefs on that URL need no API key. A typed question calls the Python API. U
 1. Open the site and pick a corridor: **BRICS**, **US–China electronics**, or **Vietnam and Mexico**.
 2. Read Summary, Key regions and sectors, So what, and What’s next. The bars beside the text are the same HS rows.
 3. Read **Wider accounts** for World Bank goods totals and the IMF current account for those countries.
-4. Ask a short trade question in the box (200 characters or fewer). Examples: `BRICS minerals and energy`, `US-China electronics`, `Vietnam textiles`.
-5. The question stays on screen while the service checks the cache and, on a miss, asks the model. The bars that come back use the same region and sector filter as the tools.
-6. A repeated question is free if it is already cached. A new generation is limited to five an hour per IP. Instruction overrides are refused before any model call. The site does not accept a file or URL upload.
+4. Or type a short question (200 characters or fewer). Name the places, the goods, and the years in ordinary words.
 
-If generation is unavailable, the page says so and keeps the closest corridor.
+   Examples:
+
+   - `How has EU energy trade with India changed since 2019?`
+   - `ASEAN electronics exports to the United States, 2020 to 2024`
+   - `Japan exports to Canada`
+
+5. The question stays on screen while the service checks the cache. On a miss it reads the question, and if that pair is not already stored it asks UN Comtrade for that slice, then writes the brief.
+6. Read the answer in this order:
+   - **Summary** states the start value, the end value, and the percent change.
+   - **Across the years** is one column per year, labeled UN Comtrade and the HS chapter.
+   - **So what** sets that move beside the World Bank merchandise total and the IMF current account. Those accounts are country-wide. They are not the bilateral flow.
+   - **What people are saying** lists public links. A link is context only. It is never the source of a number on the chart.
+7. A repeated question is free if it is already cached. A new generation is limited to five an hour per IP. Instruction overrides are refused before any model call. The site does not accept a file or URL upload.
+
+If the question names no sector, the brief says so and uses total merchandise instead of guessing a chapter. A bloc question (EU, ASEAN, USMCA, G7, or BRICS) stays small: a few members and their trade with the partner you named. If Comtrade returns nothing, the page says **No official rows for this question** and does not fill the gap with the synthetic seed. The three corridor buttons stay up either way.
+
+If generation is unavailable, the page says so and keeps the closest corridor. The typed search needs the Python API. Until that API is deployed and `NEXT_PUBLIC_AGENT_API_URL` is set, the ask box cannot fetch a new slice.
 
 ### On your machine
 
@@ -38,7 +52,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Put **one** model in `.env`, then run a focus:
+Put **one** model in `.env`, then run a focus. The CLI reads the database already on disk. It does not call Comtrade for a new pair. Load the live rows first if you want official numbers, then ask.
 
 ```bash
 # Local, no API key
@@ -49,7 +63,7 @@ python main.py -q "US-China electronics" -o report.txt
 
 # or a cloud key instead of Ollama
 # GEMINI_API_KEY=...    or    OPENAI_API_KEY=...
-python main.py -q "BRICS minerals and energy" -o report.txt
+python main.py -q "How has EU energy trade with India changed since 2019?" -o report.txt
 ```
 
 Omit `-q` for a full-panel read. Other formats:
@@ -62,7 +76,7 @@ python main.py -q "BRICS" -o report.txt -f linkedin
 
 | Flag | What it does |
 |------|----------------|
-| `-q` / `--query` | Focus, treated as data. Examples: `BRICS`, `US-China electronics`. |
+| `-q` / `--query` | Focus, treated as data. A country, a bloc, a sector, and a year window all count. Examples: `BRICS minerals`, `ASEAN electronics exports to the United States, 2020 to 2024`. |
 | `-o` / `--output` | Report path. Default is a timestamped file in the project root. |
 | `-f` | `text` (default), `html`, `linkedin` (report plus a one-liner), or `json`. |
 | `-d` / `--data` | Load a CSV into the database before the brief. |
@@ -98,7 +112,7 @@ In another terminal, from the repo root, with the same `.env` the CLI uses:
 uvicorn api.app:app --port 8000
 ```
 
-`export_gallery.py --live` writes `gallery/index.json` and `web/data/gallery.json` from a temporary database. It does not replace `data/trade.db`. Use the `fetch_comtrade.py` commands above when you want the CLI or API process itself to query the live rows.
+`export_gallery.py --live` writes `gallery/index.json` and `web/data/gallery.json` from a temporary database. It does not replace `data/trade.db`. Use the `fetch_comtrade.py` commands above when you want the CLI to query the live rows. The website ask box, through `uvicorn`, fetches a missing Comtrade slice for the question and stores it in `data/trade.db` on its own. Restart `uvicorn` after pulling this code so that path is the one answering.
 
 Without `NEXT_PUBLIC_AGENT_API_URL`, `npm run dev` still shows the briefs and says generation is not connected.
 
@@ -128,10 +142,10 @@ ASAN Macro is a trade analyst agent. The public site in `web/` shows precomputed
 | Capability | Behavior |
 |------------|----------|
 | **Trade sentiment reporting** | Generates a short narrative with thematic synthesis, key regions/sectors, implications (**so what**), and outlook (**what’s next**), wrapped in `REPORT_START` / `REPORT_END`. |
-| **Focus queries** | Optional `-q` (e.g. `BRICS`, `US-China electronics`) steers analysis; omit it for a full-database read. |
+| **Focus queries** | A plain question names countries or a bloc (EU, ASEAN, USMCA, G7, BRICS), a sector, and a year window (`since 2019`, `2020 to 2024`). No sector means total merchandise. Omit `-q` for a full-database read. |
 | **Tool-grounded analysis** | The LLM is backed by ten tools over SQLite—not free-form guessing alone—so claims can be tied to stored flows, macro series, and bulletins. |
 | **Multi-backend LLMs** | First available backend: **Ollama** → **Gemini** → **OpenAI**. OpenAI runs a multi-turn tool loop. Ollama and Gemini get a focus-specific tool pack, then write once. Gemini receives the system prompt. |
-| **Dynamic data ingest** | `scripts/export_gallery.py --live` rebuilds the site from Comtrade, World Bank, and IMF. `scripts/fetch_comtrade.py --corridors --replace` loads those HS rows into `data/trade.db`. CSV (`-d`) and an allowlisted `--data-url` still work. |
+| **Dynamic data ingest** | A question on the API fetches the missing Comtrade slice and stores it. `scripts/export_gallery.py --live` rebuilds the three sample briefs. `scripts/fetch_comtrade.py --corridors --replace` loads the fixed HS corridors into `data/trade.db`. CSV (`-d`) and an allowlisted `--data-url` still work. |
 | **Multiple output formats** | `text` (default), `html`, `linkedin` (report + short one-liner file), or `json` (structured fields for dashboards/APIs). |
 | **Evaluation** | `evaluation/run_evaluation.py` runs multiple focus queries and scores section presence, length, and runtime. |
 | **Adversarial / safety probes** | `guard_query` refuses instruction-override text before any model call (unit tested). Inputs that pass the guard are not yet recorded against a live model. |
@@ -227,7 +241,7 @@ flowchart TB
 |------|-----------|--------------|
 | **1. Configure** | `config.py`, `.env` | Load API keys / Ollama settings. Backend priority: **Ollama → Gemini → OpenAI**. |
 | **2. Persist** | `database.py` | Create/seed `data/trade.db` (`trade_flows`, `rag_chunks`) if missing. |
-| **3. Ingest (optional)** | `scripts/fetch_comtrade.py`, `macro_data.py`, `data_ingestion.py` | Load Comtrade HS corridors, World Bank and IMF series, or a CSV before analysis. |
+| **3. Ingest (optional)** | `live_slice.py`, `scripts/fetch_comtrade.py`, `macro_data.py` | A typed question on the API fetches the missing Comtrade slice. The CLI uses corridors, World Bank, IMF, or a CSV you loaded first. |
 | **4. Ground** | `tools.py` | Ten tools query structured flows, macro series, and keyword RAG so the model reasons over **data**, not only priors. |
 | **5. Reason** | `agent.py` | LLM synthesizes themes (e.g. BRICS, US–China, South–South). OpenAI uses a true tool-calling loop; Ollama/Gemini use deterministic pre-tooling + one synthesis call for portability. |
 | **6. Deliver** | `main.py` | Extract `REPORT_START`…`REPORT_END` and write text / HTML / LinkedIn one-liner / structured JSON. |
@@ -297,7 +311,9 @@ ASAN_AI_Project/
 ├── agent.py                # LLM orchestration (Ollama / Gemini / OpenAI)
 ├── tools.py                # Analyst tools over SQLite, macro series, and RAG
 ├── report_contract.py      # Brief schema, query guard, disclaimer
-├── focus.py                # Focus-specific tool pack
+├── focus.py                # Countries, blocs, sectors, and the year window
+├── live_slice.py           # On-demand Comtrade fetch for one question
+├── web_context.py          # Public links, kept off the chart
 ├── macro_data.py           # World Bank and IMF fetch, store, and sentences
 ├── gallery_build.py        # SQL charts + three briefs + wider accounts
 ├── api/app.py              # Cached, rate-limited live API
@@ -365,7 +381,7 @@ I completed this project alone: architecture, agent orchestration, tools/DB/RAG,
 
 ## What shipped for the public demo
 
-- Next.js site (`web/`) with three corridor briefs, SQL charts, Wider accounts, and a tool trace.
+- Next.js site (`web/`) with three corridor briefs, a plain-question search, a year chart, Wider accounts, a separate “What people are saying” note, and a tool trace.
 - FastAPI service (`api/app.py`): cache, background jobs, five new generations per IP per hour. No public file or URL upload.
 - Pydantic brief contract, focus-specific tool pack, Gemini system prompt, disclaimer on every brief.
 - Query guard and an https host allowlist for operator `--data-url`.

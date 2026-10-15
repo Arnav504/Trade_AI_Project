@@ -1,0 +1,19 @@
+[
+  "tests/test_asan.py::test_analyze_cache_and_rate_limit",
+  "tests/test_asan.py::test_committed_gallery_schema",
+  "tests/test_asan.py::test_comtrade_record_uses_focus_names",
+  "tests/test_asan.py::test_focus_charts_follow_the_query",
+  "tests/test_asan.py::test_focus_follows_the_query",
+  "tests/test_asan.py::test_gallery_matches_seed",
+  "tests/test_asan.py::test_html_escapes_markup",
+  "tests/test_asan.py::test_macro_parsers_and_render",
+  "tests/test_asan.py::test_missing_model_is_an_error",
+  "tests/test_asan.py::test_query_filters_and_yoy",
+  "tests/test_asan.py::test_query_guard",
+  "tests/test_asan.py::test_rate_limiter_window",
+  "tests/test_asan.py::test_refused_query_does_not_call_model",
+  "tests/test_asan.py::test_report_sections_and_disclaimer",
+  "tests/test_asan.py::test_sample_report_is_opt_in",
+  "tests/test_asan.py::test_tool_exception_is_a_message",
+  "tests/test_asan.py::test_url_allowlist"
+]

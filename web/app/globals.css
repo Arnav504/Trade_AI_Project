@@ -205,6 +205,9 @@ h1 {
   white-space: nowrap;
 }
 
+.links { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+.links a { color: var(--teal); }
+
 .caption { color: var(--muted); font-size: 0.88rem; margin: 0 0 0.8rem; }
 
 details { margin-top: 1rem; }

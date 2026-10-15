@@ -50,6 +50,15 @@ M49 = {
     "156": "China", "842": "USA", "076": "Brazil", "356": "India", "643": "Russia",
     "710": "South Africa", "484": "Mexico", "704": "Vietnam", "818": "Egypt",
     "360": "Indonesia", "784": "United Arab Emirates", "0": "World",
+    "276": "Germany", "251": "France", "380": "Italy", "724": "Spain",
+    "528": "Netherlands", "616": "Poland", "056": "Belgium", "752": "Sweden",
+    "372": "Ireland", "040": "Austria", "620": "Portugal", "300": "Greece",
+    "208": "Denmark", "246": "Finland", "203": "Czechia", "348": "Hungary",
+    "642": "Romania", "826": "United Kingdom", "392": "Japan", "124": "Canada",
+    "036": "Australia", "764": "Thailand", "458": "Malaysia", "702": "Singapore",
+    "608": "Philippines", "104": "Myanmar", "116": "Cambodia", "418": "Laos",
+    "096": "Brunei", "410": "South Korea", "682": "Saudi Arabia", "792": "Turkey",
+    "032": "Argentina", "566": "Nigeria",
 }
 
 _COUNTRY_ALIASES = {
@@ -216,6 +225,13 @@ def _records_from_frame(df) -> list:
 def _chapter_rows(records: list, chapter: str) -> list:
     """Prefer the chapter aggregate so child lines are not added on top of it."""
     chapter = str(chapter)
+    if chapter.upper() == "TOTAL":
+        totals = [
+            rec for rec in records
+            if _text(rec.get("cmdCode")).upper() in {"TOTAL", "T"}
+            or _cmd_digits(rec.get("cmdCode")) in {"", "0"}
+        ]
+        return totals or list(records)
     exact = [rec for rec in records if _cmd_digits(rec.get("cmdCode")) == chapter]
     return exact or list(records)
 

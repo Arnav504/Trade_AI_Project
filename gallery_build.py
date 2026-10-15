@@ -90,6 +90,61 @@ def _chart_levels(spans: list[dict], limit: int = 6) -> list[dict]:
     ]
 
 
+_CHAPTER = {
+    "Minerals": "HS 26",
+    "Energy": "HS 27",
+    "Textiles": "HS 61 and 62",
+    "Manufacturing": "HS 84 and 87",
+    "Electronics": "HS 85",
+    "Merchandise": "Total merchandise",
+}
+
+
+def _chart_series(spans: list[dict], limit: int = 4) -> list[dict]:
+    """One column per year. The caption states the start, the end, and the percent change."""
+    rows = []
+    for span in spans[:limit]:
+        if span["span_pct"] is None:
+            span_display = f"{_money(span['last_value'])} in {span['last_year']}"
+        else:
+            span_display = (
+                f"from {_money(span['first_value'])} in {span['first_year']} "
+                f"to {_money(span['last_value'])} in {span['last_year']} ({_pct(span['span_pct'])})"
+            )
+        rows.append(
+            {
+                "label": span["label"],
+                "source": "UN Comtrade",
+                "chapter": _CHAPTER.get(span["sector"], span["sector"]),
+                "span_display": span_display,
+                "points": [
+                    {"year": point["year"], "value": point["value_usd"], "display": _money(point["value_usd"])}
+                    for point in span.get("points") or []
+                ],
+            }
+        )
+    return rows
+
+
+def compare_with_accounts(change: str, macro: str) -> str:
+    """Set the HS move beside World Bank and IMF accounts without mixing them into the chart."""
+    if not change:
+        return (
+            "No official rows for this question, so there is no HS change to set beside "
+            "the World Bank merchandise total or the IMF current account."
+        )
+    if not macro:
+        return (
+            f"{change} World Bank merchandise totals and the IMF current account "
+            "are not loaded for these countries."
+        )
+    return (
+        f"{change} That path is the selected trade chapter. "
+        "The World Bank merchandise total and the IMF current account for these countries "
+        f"are economy-wide and separate: {macro}"
+    )
+
+
 def _chart_yoy(spans: list[dict], limit: int = 8) -> list[dict]:
     rows = [span for span in spans if span["yoy_pct"] is not None]
     rows.sort(key=lambda span: abs(span["yoy_pct"]), reverse=True)
@@ -130,12 +185,12 @@ def comtrade_note(row_count: int) -> str:
 
 
 def charts_for_focus(query: str | None) -> dict:
-    """Bars for the same region and sector filter the tools use."""
-    from focus import plan_focus
+    """Bars and the year path for the same region and sector filter the tools use."""
+    from focus import plan_focus, spans_for_plan
 
     plan = plan_focus(query)
-    spans = flow_spans(plan["regions"] or None, plan["sectors"] or None)
-    return {"top_flows": _chart_levels(spans), "yoy": _chart_yoy(spans)}
+    spans = spans_for_plan(plan, query)
+    return {"top_flows": _chart_levels(spans), "yoy": _chart_yoy(spans), "series": _chart_series(spans)}
 
 
 def _compose(preset: dict, spans: list[dict], trace: list[dict], official: bool = False) -> dict:
@@ -144,7 +199,7 @@ def _compose(preset: dict, spans: list[dict], trace: list[dict], official: bool 
     summary = " ".join(_clause(span) for span in lead)
     if not summary:
         summary = (
-            "This focus has no matching rows in the current panel."
+            "No official rows for this focus."
             if official
             else "This focus has no matching rows in the seeded panel."
         )
@@ -172,6 +227,8 @@ def _compose(preset: dict, spans: list[dict], trace: list[dict], official: bool 
             f"In this UN Comtrade slice, {movement} "
             "That is a change in the selected HS chapters, not a full trade balance or a forecast."
         )
+        if macro:
+            so_what = f"{so_what} {compare_with_accounts(summary, macro)}"
     else:
         so_what = (
             f"Inside this illustrative panel, {movement} "
@@ -202,7 +259,11 @@ def _compose(preset: dict, spans: list[dict], trace: list[dict], official: bool 
     payload = brief.model_dump()
     payload["kicker"] = preset["kicker"]
     payload["macro"] = macro
-    payload["charts"] = {"top_flows": _chart_levels(spans), "yoy": _chart_yoy(spans)}
+    payload["charts"] = {
+        "top_flows": _chart_levels(spans),
+        "yoy": _chart_yoy(spans),
+        "series": _chart_series(spans),
+    }
     return payload
 
 
@@ -250,7 +311,11 @@ def build_gallery(data_note: str | None = None) -> dict:
                 "tool pack, then write the brief in one call."
             ),
         },
-        "charts": {"top_flows": _chart_levels(all_spans), "yoy": _chart_yoy(all_spans)},
+        "charts": {
+            "top_flows": _chart_levels(all_spans),
+            "yoy": _chart_yoy(all_spans),
+            "series": _chart_series(all_spans),
+        },
         "briefs": briefs,
     }
 

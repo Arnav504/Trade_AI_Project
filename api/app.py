@@ -10,13 +10,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from agent import last_brief, run_agent
+from analytics import describe_spans
 from api.cache import cache_get, cache_put
 from api.rate_limit import RateLimiter
 from config import GALLERY_PATH
-from focus import plan_focus
-from gallery_build import charts_for_focus
+from focus import plan_focus, spans_for_plan
+from gallery_build import charts_for_focus, compare_with_accounts
+from live_slice import ensure_question_slice
 from macro_data import render_macro
 from report_contract import DISCLAIMER, QueryRejected, guard_query
+from web_context import public_notes
 
 app = FastAPI(title="ASAN Macro", version="1.0.0")
 app.state.limiter = RateLimiter(
@@ -50,7 +53,73 @@ def _client_ip(request: Request) -> str:
     return "unknown"
 
 
+def _model_failed(text: str) -> bool:
+    return text.startswith(("Error:", "Ollama error", "Gemini API error", "Agent reached max"))
+
+
+def _empty_payload(query: str, plan: dict) -> dict:
+    macro = render_macro(plan["regions"])
+    summary = "No official rows for this question."
+    return {
+        "summary": summary,
+        "key_regions_sectors": "Comtrade returned no rows for this reporter, partner, and chapter.",
+        "so_what": compare_with_accounts("", macro),
+        "whats_next": "A later official release for this slice is the next check. The sample corridors stay available.",
+        "disclaimer": DISCLAIMER,
+        "focus": query,
+        "source": "tool_output",
+        "full_report": summary,
+        "charts": {"top_flows": [], "yoy": [], "series": []},
+        "macro": macro,
+        "web_notes": public_notes(query),
+        "tool_trace": [],
+    }
+
+
+def _attach_figures(payload: dict, query: str, plan: dict, text: str) -> dict:
+    spans = spans_for_plan(plan, query)
+    change = describe_spans(spans)
+    macro = render_macro(plan["regions"])
+    payload["charts"] = charts_for_focus(query)
+    payload["macro"] = macro
+    payload["web_notes"] = public_notes(query)
+    if text.startswith("Refused:"):
+        return payload
+    if _model_failed(text):
+        payload["summary"] = change or "No official rows for this question."
+        payload["key_regions_sectors"] = change or "No official rows for this question."
+        payload["so_what"] = compare_with_accounts(change, macro)
+        payload["whats_next"] = (
+            "Another year for this same reporter, partner, and chapter is what would move the chart."
+        )
+        payload["source"] = "tool_output"
+        return payload
+    if change and change not in (payload.get("summary") or ""):
+        payload["summary"] = f"{change} {payload.get('summary') or ''}".strip()
+    so_what = payload.get("so_what") or ""
+    if "world bank" not in so_what.lower():
+        payload["so_what"] = f"{so_what} {compare_with_accounts(change, macro)}".strip()
+    return payload
+
+
 def produce_brief(query: str) -> dict:
+    try:
+        guard_query(query)
+    except QueryRejected:
+        text = run_agent(user_query=query)
+        brief = last_brief()
+        payload = {"summary": text, "focus": query, "disclaimer": DISCLAIMER, "source": "llm"} if brief is None else brief.model_dump()
+        payload["full_report"] = text
+        payload["charts"] = {"top_flows": [], "yoy": [], "series": []}
+        payload["macro"] = ""
+        payload["web_notes"] = {"summary": "", "links": []}
+        return payload
+
+    plan = plan_focus(query)
+    info = ensure_question_slice(plan, query)
+    if info["status"] == "empty":
+        return _empty_payload(query, plan)
+
     text = run_agent(user_query=query)
     brief = last_brief()
     if brief is None:
@@ -58,9 +127,7 @@ def produce_brief(query: str) -> dict:
     else:
         payload = brief.model_dump()
     payload["full_report"] = text
-    payload["charts"] = charts_for_focus(query)
-    payload["macro"] = render_macro(plan_focus(query)["regions"])
-    return payload
+    return _attach_figures(payload, query, plan, text)
 
 
 def _failed(payload: dict) -> bool:

@@ -9,6 +9,25 @@ type ChartRow = {
   year?: number;
 };
 
+type YearPoint = {
+  year: number;
+  value: number;
+  display: string;
+};
+
+type YearSeries = {
+  label: string;
+  source: string;
+  chapter: string;
+  span_display: string;
+  points: YearPoint[];
+};
+
+type WebNotes = {
+  summary?: string;
+  links?: { title: string; url: string }[];
+};
+
 type Trace = {
   name: string;
   args?: Record<string, unknown>;
@@ -25,18 +44,19 @@ type Brief = {
   so_what?: string;
   whats_next?: string;
   macro?: string;
+  web_notes?: WebNotes;
   disclaimer?: string;
   source?: string;
   focus?: string;
   tool_trace?: Trace[];
-  charts?: { top_flows: ChartRow[]; yoy: ChartRow[] };
+  charts?: { top_flows: ChartRow[]; yoy: ChartRow[]; series?: YearSeries[] };
 };
 
 type Gallery = {
   data_note: string;
   disclaimer: string;
   briefs: Brief[];
-  charts: { top_flows: ChartRow[]; yoy: ChartRow[] };
+  charts: { top_flows: ChartRow[]; yoy: ChartRow[]; series?: YearSeries[] };
   how_it_works: { tools: string[]; backends: string };
 };
 
@@ -72,6 +92,30 @@ function Bars({ rows, signed, empty }: { rows: ChartRow[]; signed?: boolean; emp
   );
 }
 
+function YearChart({ series }: { series: YearSeries[] }) {
+  if (!series.length) return null;
+  return (
+    <div className="chart-block">
+      <h3>Across the years</h3>
+      {series.map((item) => (
+        <div key={item.label}>
+          <p className="caption">
+            {item.source} · {item.chapter}. {item.label}. {item.span_display}
+          </p>
+          <Bars
+            rows={item.points.map((point) => ({
+              label: String(point.year),
+              value: point.value,
+              display: point.display,
+            }))}
+            empty=""
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: string }) {
   const briefs = gallery.briefs;
   const [activeId, setActiveId] = useState(briefs[0]?.id || "brics");
@@ -88,7 +132,7 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
   const charts = live?.charts
     ? live.charts
     : waiting
-      ? { top_flows: [], yoy: [] }
+      ? { top_flows: [], yoy: [], series: [] }
       : selected.charts ?? gallery.charts;
   const base = apiBase.replace(/\/$/, "");
 
@@ -242,6 +286,19 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
           <h2>What&apos;s next</h2>
           <p>{shown.whats_next || "Not provided."}</p>
           <p className="disclaimer">{shown.disclaimer || gallery.disclaimer}</p>
+          {shown.web_notes?.links && shown.web_notes.links.length > 0 ? (
+            <>
+              <h2>What people are saying</h2>
+              <p>{shown.web_notes.summary}</p>
+              <ul className="links">
+                {shown.web_notes.links.map((link) => (
+                  <li key={link.url}>
+                    <a href={link.url}>{link.title}</a>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
           {shown.tool_trace && shown.tool_trace.length > 0 ? (
             <details>
               <summary>Tool trace ({shown.tool_trace.length})</summary>
@@ -264,6 +321,7 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
           <h3>Latest levels</h3>
           <p className="caption">{gallery.data_note}</p>
           <Bars rows={charts.top_flows || []} empty={gallery.data_note} />
+          <YearChart series={charts.series || []} />
           <div className="chart-block">
             <h3>Latest year-over-year</h3>
             <Bars rows={charts.yoy || []} signed empty={gallery.data_note} />
@@ -284,7 +342,7 @@ export function BriefApp({ gallery, apiBase }: { gallery: Gallery; apiBase: stri
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             maxLength={200}
-            placeholder="BRICS minerals, or US-China electronics"
+            placeholder="How has EU energy trade with India changed since 2019?"
           />
           <button type="submit" disabled={pending}>
             {pending ? "Working" : "Generate"}

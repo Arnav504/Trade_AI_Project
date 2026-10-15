@@ -360,3 +360,133 @@ def test_analyze_cache_and_rate_limit(tmp_path, monkeypatch):
 
     third = client.post("/analyze", json={"query": "textiles outlook"})
     assert third.status_code == 429
+
+
+def test_plain_question_parses_bloc_sector_and_years(tmp_path, monkeypatch):
+    monkeypatch.setenv("ASAN_DB_PATH", str(tmp_path / "trade.db"))
+    from database import ensure_db
+    from focus import plan_focus, trade_pairs
+    from analytics import flow_spans
+
+    ensure_db()
+    eu = plan_focus("How has EU energy trade with India changed since 2019?")
+    assert eu["sectors"] == ["Energy"]
+    assert eu["sector_named"] is True
+    assert (eu["year_from"], eu["year_to"]) == (2019, 2024)
+    assert "EU" in eu["blocs"]
+    assert eu["regions"][0] == "India"
+    assert "Germany" in eu["regions"]
+    pairs = trade_pairs(eu, "How has EU energy trade with India changed since 2019?")
+    assert 1 <= len(pairs) <= 6
+    assert {item["partner"] for item in pairs} == {"India"}
+    assert {item["chapter"] for item in pairs} == {"27"}
+
+    asean = plan_focus("ASEAN electronics exports to the United States, 2020 to 2024")
+    assert (asean["year_from"], asean["year_to"]) == (2020, 2024)
+    assert "USA" in asean["regions"]
+    assert asean["sectors"] == ["Electronics"]
+    assert "ASEAN" in asean["blocs"]
+
+    plain = plan_focus("Japan exports to Canada")
+    assert plain["sectors"] == []
+    assert plain["sector_named"] is False
+    assert plain["merchandise_total"] is True
+
+    energy = next(span for span in flow_spans(["India"], ["Energy"]) if span["partner"] == "Russia")
+    assert [point["year"] for point in energy["points"]] == [2022, 2023, 2024]
+    assert energy["first_value"] == 2.5e9
+    assert energy["last_value"] == 9.2e9
+
+
+def test_year_chart_states_start_end_and_change(tmp_path, monkeypatch):
+    monkeypatch.setenv("ASAN_DB_PATH", str(tmp_path / "trade.db"))
+    from database import ensure_db
+    from gallery_build import charts_for_focus
+
+    ensure_db()
+    charts = charts_for_focus("India Russia energy")
+    series = charts["series"][0]
+    assert series["source"] == "UN Comtrade"
+    assert series["chapter"] == "HS 27"
+    assert [point["year"] for point in series["points"]] == [2022, 2023, 2024]
+    assert "2022" in series["span_display"]
+    assert "2024" in series["span_display"]
+    assert "%" in series["span_display"]
+
+
+def test_missing_comtrade_slice_is_not_the_seed(tmp_path, monkeypatch):
+    monkeypatch.setenv("ASAN_DB_PATH", str(tmp_path / "trade.db"))
+    from database import ensure_db
+    from analytics import load_flows
+    from focus import plan_focus
+    from live_slice import ensure_question_slice
+
+    ensure_db()
+    plan = plan_focus("India Russia energy")
+    info = ensure_question_slice(plan, "India Russia energy", fetch=lambda spec, years: [])
+    assert info["status"] == "empty"
+    assert info["note"] == "No official rows for this question."
+    assert any(row["value_usd"] == 9.2e9 for row in load_flows())
+
+
+def test_official_pair_is_not_fetched_again(tmp_path, monkeypatch):
+    monkeypatch.setenv("ASAN_DB_PATH", str(tmp_path / "trade.db"))
+    import sqlite3
+    from config import get_db_path
+    from database import ensure_db
+    from focus import plan_focus
+    from live_slice import ensure_question_slice
+
+    ensure_db()
+    conn = sqlite3.connect(str(get_db_path()))
+    for year in (2022, 2023, 2024):
+        conn.execute(
+            "INSERT INTO trade_flows (year, quarter, reporter_region, partner_region, sector, flow_type, value_usd) VALUES (?,?,?,?,?,?,?)",
+            (year, None, "Germany", "India", "Energy", "export", 50.0),
+        )
+    conn.commit()
+    conn.close()
+    query = "Germany energy exports to India"
+    plan = plan_focus(query)
+
+    def fail(spec, years):
+        raise AssertionError("fetch should not run")
+
+    info = ensure_question_slice(plan, query, fetch=fail)
+    assert info["status"] == "stored"
+
+
+def test_fetched_slice_is_stored(tmp_path, monkeypatch):
+    monkeypatch.setenv("ASAN_DB_PATH", str(tmp_path / "trade.db"))
+    from database import ensure_db
+    from analytics import flow_spans
+    from focus import plan_focus
+    from live_slice import ensure_question_slice
+
+    ensure_db()
+    query = "Germany energy exports to India"
+    plan = plan_focus(query)
+
+    def fake(spec, years):
+        return [(year, spec["reporter"], spec["partner"], spec["sector"], spec["flow"], 80.0) for year in years]
+
+    info = ensure_question_slice(plan, query, fetch=fake)
+    assert info["status"] == "fetched"
+    spans = flow_spans(["Germany"], ["Energy"])
+    assert [point["year"] for point in spans[0]["points"]] == [2022, 2023, 2024]
+    assert spans[0]["last_value"] == 80.0
+
+
+def test_web_notes_do_not_become_values():
+    from web_context import public_notes
+
+    notes = public_notes(
+        "India energy",
+        search=lambda query: [{"title": "India buys $9.2B of oil", "url": "https://example.com/story"}],
+    )
+    assert notes["links"][0]["url"] == "https://example.com/story"
+    assert "$" not in notes["links"][0]["title"]
+    assert "9.2" not in notes["links"][0]["title"]
+    assert "value" not in notes
+    assert "chart" in notes["summary"]
+

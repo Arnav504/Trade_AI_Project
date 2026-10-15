@@ -1,12 +1,14 @@
 """Live World Bank merchandise totals and IMF current-account series.
 
-These are country accounts, not HS corridors, so they stay out of trade_flows.
+These are country accounts, not bilateral HS flows, so they stay in macro_series.
+UN Comtrade rows stay in trade_flows. Both tables live in the same SQLite file.
 """
 import json
 import urllib.request
 
 from database import init_db
 
+# ISO3 codes for every country the question parser can name.
 COUNTRIES = {
     "BRA": "Brazil",
     "RUS": "Russia",
@@ -16,7 +18,49 @@ COUNTRIES = {
     "USA": "USA",
     "MEX": "Mexico",
     "VNM": "Vietnam",
+    "DEU": "Germany",
+    "FRA": "France",
+    "ITA": "Italy",
+    "ESP": "Spain",
+    "NLD": "Netherlands",
+    "POL": "Poland",
+    "BEL": "Belgium",
+    "SWE": "Sweden",
+    "IRL": "Ireland",
+    "AUT": "Austria",
+    "PRT": "Portugal",
+    "GRC": "Greece",
+    "DNK": "Denmark",
+    "FIN": "Finland",
+    "CZE": "Czechia",
+    "HUN": "Hungary",
+    "ROU": "Romania",
+    "GBR": "United Kingdom",
+    "JPN": "Japan",
+    "CAN": "Canada",
+    "AUS": "Australia",
+    "IDN": "Indonesia",
+    "THA": "Thailand",
+    "MYS": "Malaysia",
+    "SGP": "Singapore",
+    "PHL": "Philippines",
+    "MMR": "Myanmar",
+    "KHM": "Cambodia",
+    "LAO": "Laos",
+    "BRN": "Brunei",
+    "KOR": "South Korea",
+    "SAU": "Saudi Arabia",
+    "ARE": "United Arab Emirates",
+    "TUR": "Turkey",
+    "ARG": "Argentina",
+    "NGA": "Nigeria",
+    "EGY": "Egypt",
 }
+
+# The saved gallery only refreshes the original corridor countries.
+GALLERY_ISO = ("BRA", "RUS", "IND", "CHN", "ZAF", "USA", "MEX", "VNM")
+_NAMES = {name: code for code, name in COUNTRIES.items()}
+_checked: set[tuple] = set()
 
 WB_INDICATORS = {
     "TX.VAL.MRCH.CD.WT": "merchandise_exports",
@@ -58,8 +102,10 @@ def parse_world_bank(payload, indicator: str) -> list[dict]:
     return parsed
 
 
-def parse_imf(payload, series_id: str) -> list[dict]:
+def parse_imf(payload, series_id: str, year_from: int | None = None, year_to: int | None = None) -> list[dict]:
     name, unit = IMF_INDICATORS[series_id]
+    start = YEARS[0] if year_from is None else int(year_from)
+    end = YEARS[1] if year_to is None else int(year_to)
     series = (payload.get("values") or {}).get(series_id) or {}
     parsed = []
     for code, country in COUNTRIES.items():
@@ -74,7 +120,7 @@ def parse_imf(payload, series_id: str) -> list[dict]:
                 number = float(value)
             except (TypeError, ValueError):
                 continue
-            if year < YEARS[0] or year > YEARS[1]:
+            if year < start or year > end:
                 continue
             parsed.append(
                 {
@@ -96,7 +142,7 @@ def _get(url: str):
 
 
 def fetch_world_bank() -> list[dict]:
-    codes = ";".join(COUNTRIES)
+    codes = ";".join(GALLERY_ISO)
     rows = []
     for code, indicator in WB_INDICATORS.items():
         url = (
@@ -152,6 +198,98 @@ def load_macro(rows: list[dict]) -> tuple[int, int]:
     conn.commit()
     conn.close()
     return wb, imf
+
+
+def _has_indicator(country: str, indicator: str, year_from: int, year_to: int) -> bool:
+    for row in load_macro_rows():
+        if row["country"] == country and row["indicator"] == indicator and year_from <= row["year"] <= year_to:
+            return True
+    return False
+
+
+def _upsert_macro(rows: list[dict]) -> None:
+    if not rows:
+        return
+    conn = init_db()
+    try:
+        for row in rows:
+            conn.execute(
+                """DELETE FROM macro_series
+                   WHERE source = ? AND indicator = ? AND country = ? AND year = ?""",
+                (row["source"], row["indicator"], row["country"], row["year"]),
+            )
+            conn.execute(
+                """INSERT INTO macro_series (source, indicator, country, year, value, unit)
+                   VALUES (?,?,?,?,?,?)""",
+                (row["source"], row["indicator"], row["country"], row["year"], row["value"], row["unit"]),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def ensure_macro(countries: list[str] | None, year_from: int | None, year_to: int | None, get=None) -> None:
+    """Load World Bank and IMF rows for this question when those years are not stored yet.
+
+    A failed request is remembered for this process and does not raise. These figures
+    stay in macro_series. They are not written into trade_flows.
+    """
+    start = int(year_from or YEARS[0])
+    end = int(year_to or YEARS[1])
+    if start > end:
+        start, end = end, start
+    names = []
+    for name in countries or []:
+        if name in _NAMES and name not in names:
+            names.append(name)
+    if not names:
+        return
+    getter = get or _get
+    need_bank = [
+        name
+        for name in names
+        if ("world_bank", name, start, end) not in _checked
+        and not _has_indicator(name, "merchandise_exports", start, end)
+    ]
+    if need_bank:
+        codes = ";".join(_NAMES[name] for name in need_bank)
+        found = []
+        try:
+            for code, indicator in WB_INDICATORS.items():
+                url = (
+                    "https://api.worldbank.org/v2/country/"
+                    f"{codes}/indicator/{code}?date={start}:{end}&format=json&per_page=500"
+                )
+                found.extend(parse_world_bank(getter(url), indicator))
+        except Exception as exc:
+            print(f"World Bank: {exc}", flush=True)
+            found = []
+        keep = [row for row in found if row["country"] in need_bank and start <= row["year"] <= end]
+        _upsert_macro(keep)
+        for name in need_bank:
+            if not _has_indicator(name, "merchandise_exports", start, end):
+                _checked.add(("world_bank", name, start, end))
+    need_imf = [
+        name
+        for name in names
+        if ("imf", name, start, end) not in _checked
+        and not _has_indicator(name, "current_account", start, end)
+    ]
+    if not need_imf:
+        return
+    found = []
+    try:
+        for series_id in IMF_INDICATORS:
+            url = f"https://www.imf.org/external/datamapper/api/v1/{series_id}"
+            found.extend(parse_imf(getter(url), series_id, start, end))
+    except Exception as exc:
+        print(f"IMF: {exc}", flush=True)
+        found = []
+    keep = [row for row in found if row["country"] in need_imf]
+    _upsert_macro(keep)
+    for name in need_imf:
+        if not _has_indicator(name, "current_account", start, end):
+            _checked.add(("imf", name, start, end))
 
 
 def load_macro_rows() -> list[dict]:

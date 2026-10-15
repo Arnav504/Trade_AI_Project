@@ -1,8 +1,6 @@
 """Fetch a Comtrade slice for one parsed question and store it. Never fills a miss with the synthetic seed."""
-import sqlite3
 from pathlib import Path
 
-from config import get_db_path
 from database import SAMPLE_TRADE, init_db
 from focus import COUNTRY_CODES, plan_focus, trade_pairs
 
@@ -36,7 +34,7 @@ def _window_covered(spec: dict, year_from: int, year_to: int) -> bool:
 
 
 def _pair_years(spec: dict, year_from: int, year_to: int) -> set[int]:
-    conn = sqlite3.connect(str(get_db_path()))
+    conn = init_db()
     try:
         found = conn.execute(
             """

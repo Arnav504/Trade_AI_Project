@@ -1,10 +1,10 @@
 """Row-level trade aggregates for charts. Figures come from SQLite, not from model prose."""
-import sqlite3
-from config import get_db_path
+from database import init_db
 
 
 def _connect():
-    return sqlite3.connect(str(get_db_path()))
+    """Open the trade database and create tables when this is a new file."""
+    return init_db()
 
 
 def load_flows() -> list[dict]:

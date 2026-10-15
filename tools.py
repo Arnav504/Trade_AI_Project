@@ -2,13 +2,11 @@
 User-created tools called by the LLM for augmentation (required by project rubric).
 These tools query the trade database and RAG store so the LLM can ground its analysis.
 """
-import sqlite3
-from pathlib import Path
-from config import get_db_path
+from database import init_db
 
 
 def _get_conn():
-    return sqlite3.connect(str(get_db_path()))
+    return init_db()
 
 
 def list_regions() -> str:

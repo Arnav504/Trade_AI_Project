@@ -3,6 +3,7 @@ import json
 import os
 import threading
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -14,14 +15,24 @@ from analytics import describe_spans
 from api.cache import cache_get, cache_put
 from api.rate_limit import RateLimiter
 from config import GALLERY_PATH
+from database import init_db
 from focus import plan_focus, spans_for_plan
 from gallery_build import charts_for_focus, compare_with_accounts
 from live_slice import ensure_question_slice
-from macro_data import render_macro
+from macro_data import ensure_macro, render_macro
 from report_contract import DISCLAIMER, QueryRejected, guard_query
 from web_context import public_notes
 
-app = FastAPI(title="ASAN Macro", version="1.0.0")
+
+@asynccontextmanager
+async def _lifespan(_app):
+    init_db()
+    yield
+
+
+app = FastAPI(title="ASAN Macro", version="1.0.0", lifespan=_lifespan)
+
+
 app.state.limiter = RateLimiter(
     limit=int(os.environ.get("ASAN_RATE_LIMIT", "5")),
     window_seconds=int(os.environ.get("ASAN_RATE_WINDOW", "3600")),
@@ -121,6 +132,7 @@ def produce_brief(query: str) -> dict:
         query = cleaned
 
     plan = plan_focus(query)
+    ensure_macro(plan.get("regions") or [], plan.get("year_from"), plan.get("year_to"))
     info = ensure_question_slice(plan, query)
     if info["status"] == "empty":
         return _empty_payload(query, plan)

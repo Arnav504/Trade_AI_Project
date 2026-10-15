@@ -512,3 +512,68 @@ def test_web_notes_do_not_become_values():
     assert "value" not in notes
     assert "chart" in notes["summary"]
 
+
+def test_missing_trade_table_is_created_before_a_fetch(tmp_path, monkeypatch):
+    monkeypatch.setenv("ASAN_DB_PATH", str(tmp_path / "trade.db"))
+    from analytics import load_flows
+    from focus import plan_focus
+    from live_slice import ensure_question_slice
+
+    assert load_flows() == []
+    query = "Japan India trade in 2025"
+    plan = plan_focus(query)
+
+    def fake(spec, years):
+        assert years == [2025]
+        assert spec["sector"] == "Merchandise"
+        return [(2025, spec["reporter"], spec["partner"], spec["sector"], spec["flow"], 12.0)]
+
+    info = ensure_question_slice(plan, query, fetch=fake)
+    assert info["status"] == "fetched"
+    stored = load_flows()
+    assert len(stored) == 1
+    assert stored[0]["year"] == 2025
+    assert {stored[0]["reporter"], stored[0]["partner"]} == {"Japan", "India"}
+
+
+def test_missing_macro_is_loaded_for_the_question_countries(tmp_path, monkeypatch):
+    monkeypatch.setenv("ASAN_DB_PATH", str(tmp_path / "trade.db"))
+    import macro_data
+    from macro_data import ensure_macro, render_macro
+
+    macro_data._checked.clear()
+    calls = []
+
+    def fake(url):
+        calls.append(url)
+        if "TX.VAL" in url:
+            return [
+                {"page": 1},
+                [
+                    {"countryiso3code": "JPN", "date": "2025", "value": 738337000000},
+                    {"countryiso3code": "IND", "date": "2025", "value": 445278000000},
+                ],
+            ]
+        if "TM.VAL" in url:
+            return [
+                {"page": 1},
+                [
+                    {"countryiso3code": "JPN", "date": "2025", "value": 800000000000},
+                    {"countryiso3code": "IND", "date": "2025", "value": 700000000000},
+                ],
+            ]
+        if url.endswith("/BCA_NGDPD"):
+            return {"values": {"BCA_NGDPD": {"JPN": {"2025": 3.8}, "IND": {"2025": -0.7}}}}
+        return {"values": {"BCA": {"JPN": {"2025": 216.56, "2030": 1}, "IND": {"2025": -27.388}}}}
+
+    ensure_macro(["Japan", "India"], 2025, 2025, get=fake)
+    text = render_macro(["Japan", "India"])
+    assert "World Bank merchandise exports: " in text
+    assert "Japan $738.3B (2025)" in text
+    assert "India $445.3B (2025)" in text
+    assert "IMF WEO current account" in text
+    assert "2030" not in text
+    first = len(calls)
+    ensure_macro(["Japan", "India"], 2025, 2025, get=fake)
+    assert len(calls) == first
+
